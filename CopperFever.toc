@@ -1,0 +1,34 @@
+## Interface: 120000
+## Title: Copper Fever
+## Title-zhCN: 铜币狂热
+## Notes: Track currencies, resources and reputation based on your current zone
+## Notes-zhCN: 根据当前区域追踪货币、资源和声望
+## Author: David W Zhang
+## Version: 1.0.0
+## SavedVariables: CopperFeverDB
+## OptionalDeps: AllTheThings
+## X-Website: https://www.curseforge.com/wow/addons/copper-fever
+## X-Curse-Project-ID: 1447131
+## X-Category: Currency & Resources
+## X-Localizations: enUS, zhCN
+
+# Core files
+Constants.lua
+Utils.lua
+
+# Localization
+Locales\Locale.lua
+Locales\enUS.lua
+Locales\zhCN.lua
+
+# Data layer
+Data\StaticData.lua
+Data\DataManager.lua
+Data\ATTIntegration.lua
+
+# UI layer
+UI\MainFrame.lua
+UI\ConfigPanel.lua
+
+# Core initialization (must be last)
+Core.lua
