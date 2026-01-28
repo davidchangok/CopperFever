@@ -143,7 +143,7 @@ function CF:OnZoneChanged()
             mapInfo = CF.DataManager:GetMapInfo(mapID)
         end
         
-        local mapName = mapInfo and mapInfo.name or "Unknown"
+        local mapName = mapInfo and mapInfo.name or CF:L("UNKNOWN")
         
         CF:LogInfo("区域改变: %s (ID: %d)", mapName, mapID)
         

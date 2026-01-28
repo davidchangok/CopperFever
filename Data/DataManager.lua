@@ -129,7 +129,7 @@ function DM:GetCurrencyList(currencyIDs)
         if info then
             table.insert(result, {
                 id = currencyID,
-                name = info.name or info.staticName or "Unknown",
+                name = info.name or info.staticName or CF:L("UNKNOWN"),
                 icon = info.iconFileID,
                 amount = info.quantity or 0,
                 maxAmount = info.maxQuantity or 0,
@@ -194,7 +194,7 @@ function DM:GetReputationInfo(factionID)
     -- 构建返回信息
     local info = {
         id = factionID,
-        name = data.name or (staticData and staticData.name) or "Unknown",
+        name = data.name or (staticData and staticData.name) or CF:L("UNKNOWN"),
         description = data.description or "",
         reaction = data.reaction or 4,  -- 默认友善
         currentStanding = data.currentStanding or 0,
@@ -514,7 +514,7 @@ function DM:GetCurrentZoneData()
     
     return {
         mapID = mapID,
-        mapName = mapInfo and mapInfo.name or "Unknown",
+        mapName = mapInfo and mapInfo.name or CF:L("UNKNOWN"),
         expansion = mapInfo and mapInfo.expansion or nil,
         currencies = currencyList,
         reputations = reputationList,

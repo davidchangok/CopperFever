@@ -138,11 +138,11 @@ end
 -- 获取扩展版本本地化名称
 function CF:GetExpansionLocalizedName(expansion)
     if type(expansion) ~= "number" then
-        return "Unknown Expansion"
+        return self:L("UNKNOWN_EXPANSION")
     end
     
     local key = "EXPANSION_" .. expansion
-    return L[key] or ("Unknown Expansion " .. expansion)
+    return L[key] or (self:L("UNKNOWN_EXPANSION") .. " " .. expansion)
 end
 
 -- 获取货币类型本地化名称
@@ -190,7 +190,7 @@ function CF:GetDebugLevelLocalizedName(level)
     elseif level == CF.DEBUG_LEVELS.TRACE then
         return L["DEBUG_LEVEL_TRACE"]
     else
-        return "Unknown"
+        return self:L("UNKNOWN")
     end
 end
 

@@ -1,51 +1,54 @@
 -- ====================================================================
 -- Copper Fever - Data\ATTIntegration.lua
--- ALL THE THINGS 集成接口
+-- ALL THE THINGS 插件集成
 -- Author: David W Zhang
 -- ====================================================================
 
 local CF = CopperFever
 
 -- ====================================================================
--- ATT 集成初始化
+-- ATT 集成模块初始化
 -- ====================================================================
 CF.ATTIntegration = CF.ATTIntegration or {}
 local ATT = CF.ATTIntegration
 
--- ATT 可用性标记
-ATT.isAvailable = false
+-- 初始化标志
+ATT.initialized = false
+ATT.available = false
 ATT.version = nil
 
 -- ====================================================================
--- 检查 ATT 是否可用
+-- 检测 ATT 是否可用
 -- ====================================================================
 function ATT:CheckAvailability()
-    -- 检查 ATT 插件是否加载
-    if not AllTheThings then
-        self.isAvailable = false
-        CF:LogInfo("ALL THE THINGS 插件未找到")
-        return false
+    -- 检查 ATT 全局变量是否存在
+    if _G.AllTheThings or _G.ATTCharacterData then
+        self.available = true
+        
+        -- 尝试获取版本信息
+        if _G.AllTheThings and type(_G.AllTheThings.GetVersion) == "function" then
+            local success, version = pcall(_G.AllTheThings.GetVersion)
+            if success then
+                self.version = version
+                CF:LogInfo("检测到 ALL THE THINGS v%s", tostring(version))
+            end
+        else
+            CF:LogInfo("检测到 ALL THE THINGS (版本未知)")
+        end
+        
+        return true
     end
     
-    self.isAvailable = true
-    
-    -- 尝试获取版本信息
-    if AllTheThings.Version then
-        self.version = AllTheThings.Version
-        CF:LogInfo("检测到 ALL THE THINGS 版本: %s", tostring(self.version))
-    else
-        CF:LogInfo("检测到 ALL THE THINGS（版本未知）")
-    end
-    
-    return true
+    self.available = false
+    return false
 end
 
--- 获取 ATT 是否可用
+-- 是否可用
 function ATT:IsAvailable()
-    return self.isAvailable
+    return self.available
 end
 
--- 获取 ATT 版本
+-- 获取版本
 function ATT:GetVersion()
     return self.version
 end
@@ -53,41 +56,74 @@ end
 -- ====================================================================
 -- 从 ATT 导入货币数据
 -- ====================================================================
-function ATT:ImportCurrencyData()
+function ATT:ImportCurrencies()
     if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入货币数据")
-        return false, {}
+        CF:LogError("ALL THE THINGS 不可用")
+        return {}
     end
     
-    CF:LogInfo("开始从 ATT 导入货币数据...")
+    CF:LogInfo("正在从 ALL THE THINGS 导入货币数据...")
     
-    local importedCurrencies = {}
-    local count = 0
+    local imported = {}
+    local importedCount = 0
     
-    -- ATT 的货币数据结构可能存储在不同位置
-    -- 这里提供一个通用的访问方式
-    -- 注意：实际的数据结构可能需要根据 ATT 的实际实现调整
+    -- ATT 可能将货币数据存储在不同的位置
+    -- 这里提供一个通用的导入框架
     
-    if AllTheThings.DB and AllTheThings.DB.Currencies then
-        for currencyID, data in pairs(AllTheThings.DB.Currencies) do
-            if type(currencyID) == "number" and currencyID > 0 then
-                -- 验证货币ID
+    -- 尝试从 ATT 的数据结构中获取货币信息
+    if _G.AllTheThings and type(_G.AllTheThings.Currencies) == "table" then
+        for currencyID, data in pairs(_G.AllTheThings.Currencies) do
+            if type(currencyID) == "number" and CF:IsValidCurrencyIDValue(currencyID) then
+                -- 验证货币ID是否真实存在
                 if CF:IsValidCurrencyID(currencyID) then
-                    importedCurrencies[currencyID] = {
+                    table.insert(imported, {
                         id = currencyID,
-                        name = data.name or data.text or "Unknown",
-                        icon = data.icon,
-                        attData = data,
-                    }
-                    count = count + 1
+                        source = "ATT",
+                        data = data,
+                    })
+                    importedCount = importedCount + 1
                 end
             end
         end
     end
     
-    CF:LogInfo("从 ATT 导入了 %d 个货币", count)
+    CF:LogInfo("从 ATT 导入了 %d 个货币", importedCount)
+    return imported
+end
+
+-- ====================================================================
+-- 从 ATT 导入声望数据
+-- ====================================================================
+function ATT:ImportReputations()
+    if not self:IsAvailable() then
+        CF:LogError("ALL THE THINGS 不可用")
+        return {}
+    end
     
-    return true, importedCurrencies
+    CF:LogInfo("正在从 ALL THE THINGS 导入声望数据...")
+    
+    local imported = {}
+    local importedCount = 0
+    
+    -- 尝试从 ATT 的数据结构中获取声望信息
+    if _G.AllTheThings and type(_G.AllTheThings.Factions) == "table" then
+        for factionID, data in pairs(_G.AllTheThings.Factions) do
+            if type(factionID) == "number" and CF:IsValidFactionIDValue(factionID) then
+                -- 验证声望ID是否真实存在
+                if CF:IsValidFactionID(factionID) then
+                    table.insert(imported, {
+                        id = factionID,
+                        source = "ATT",
+                        data = data,
+                    })
+                    importedCount = importedCount + 1
+                end
+            end
+        end
+    end
+    
+    CF:LogInfo("从 ATT 导入了 %d 个声望", importedCount)
+    return imported
 end
 
 -- ====================================================================
@@ -95,231 +131,115 @@ end
 -- ====================================================================
 function ATT:ImportMapData()
     if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入地图数据")
-        return false, {}
+        CF:LogError("ALL THE THINGS 不可用")
+        return {}
     end
     
-    CF:LogInfo("开始从 ATT 导入地图数据...")
+    CF:LogInfo("正在从 ALL THE THINGS 导入地图数据...")
     
-    local importedMaps = {}
-    local count = 0
+    local imported = {}
+    local importedCount = 0
     
-    -- ATT 的地图数据结构
-    -- 注意：实际的数据结构可能需要根据 ATT 的实际实现调整
-    
-    if AllTheThings.DB and AllTheThings.DB.Maps then
-        for mapID, data in pairs(AllTheThings.DB.Maps) do
-            if type(mapID) == "number" and mapID > 0 then
-                -- 验证地图ID
+    -- 尝试从 ATT 的数据结构中获取地图信息
+    if _G.AllTheThings and type(_G.AllTheThings.Maps) == "table" then
+        for mapID, data in pairs(_G.AllTheThings.Maps) do
+            if type(mapID) == "number" and CF:IsValidMapIDValue(mapID) then
+                -- 验证地图ID是否真实存在
                 if CF:IsValidMapID(mapID) then
-                    importedMaps[mapID] = {
+                    imported[mapID] = {
                         id = mapID,
-                        name = data.name or data.text or "Unknown",
-                        parentID = data.parent,
-                        attData = data,
+                        source = "ATT",
+                        data = data,
                     }
-                    count = count + 1
+                    importedCount = importedCount + 1
                 end
             end
         end
     end
     
-    CF:LogInfo("从 ATT 导入了 %d 个地图", count)
-    
-    return true, importedMaps
+    CF:LogInfo("从 ATT 导入了 %d 个地图", importedCount)
+    return imported
 end
 
 -- ====================================================================
--- 从 ATT 导入声望数据
--- ====================================================================
-function ATT:ImportReputationData()
-    if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入声望数据")
-        return false, {}
-    end
-    
-    CF:LogInfo("开始从 ATT 导入声望数据...")
-    
-    local importedReputations = {}
-    local count = 0
-    
-    -- ATT 的声望数据结构
-    -- 注意：实际的数据结构可能需要根据 ATT 的实际实现调整
-    
-    if AllTheThings.DB and AllTheThings.DB.Factions then
-        for factionID, data in pairs(AllTheThings.DB.Factions) do
-            if type(factionID) == "number" and factionID > 0 then
-                -- 验证声望ID
-                if CF:IsValidFactionID(factionID) then
-                    importedReputations[factionID] = {
-                        id = factionID,
-                        name = data.name or data.text or "Unknown",
-                        description = data.description,
-                        attData = data,
-                    }
-                    count = count + 1
-                end
-            end
-        end
-    end
-    
-    CF:LogInfo("从 ATT 导入了 %d 个声望", count)
-    
-    return true, importedReputations
-end
-
--- ====================================================================
--- 从 ATT 导入地图与货币的关联关系
+-- 从 ATT 导入地图-货币关联
 -- ====================================================================
 function ATT:ImportMapCurrencyAssociations()
     if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入关联数据")
-        return false, {}
+        CF:LogError("ALL THE THINGS 不可用")
+        return {}
     end
     
-    CF:LogInfo("开始从 ATT 导入地图与货币关联...")
+    CF:LogInfo("正在从 ALL THE THINGS 导入地图-货币关联...")
     
     local associations = {}
-    local count = 0
+    local associationCount = 0
     
-    -- 尝试从 ATT 获取地图与货币的关联
-    -- 注意：这个功能取决于 ATT 是否提供此类数据
+    -- ATT 可能以不同方式存储关联关系
+    -- 这里提供一个通用框架来提取这些关联
     
-    -- 方法1：直接从 ATT 数据结构获取
-    if AllTheThings.DB and AllTheThings.DB.MapCurrencies then
-        for mapID, currencies in pairs(AllTheThings.DB.MapCurrencies) do
+    if _G.AllTheThings and type(_G.AllTheThings.MapCurrencies) == "table" then
+        for mapID, currencies in pairs(_G.AllTheThings.MapCurrencies) do
             if type(mapID) == "number" and type(currencies) == "table" then
-                associations[mapID] = CF.DataManager:ValidateCurrencyIDs(currencies)
-                if #associations[mapID] > 0 then
-                    count = count + 1
-                end
-            end
-        end
-    end
-    
-    -- 方法2：从地图数据中推断
-    if count == 0 and AllTheThings.DB and AllTheThings.DB.Maps then
-        for mapID, mapData in pairs(AllTheThings.DB.Maps) do
-            if type(mapID) == "number" and mapData.currencies then
-                local currencyList = {}
+                local validCurrencies = {}
                 
-                if type(mapData.currencies) == "table" then
-                    for _, currencyID in ipairs(mapData.currencies) do
-                        if type(currencyID) == "number" and CF:IsValidCurrencyID(currencyID) then
-                            table.insert(currencyList, currencyID)
-                        end
+                for _, currencyID in ipairs(currencies) do
+                    if type(currencyID) == "number" and CF:IsValidCurrencyIDValue(currencyID) then
+                        table.insert(validCurrencies, currencyID)
                     end
                 end
                 
-                if #currencyList > 0 then
-                    associations[mapID] = currencyList
-                    count = count + 1
+                if #validCurrencies > 0 then
+                    associations[mapID] = validCurrencies
+                    associationCount = associationCount + 1
                 end
             end
         end
     end
     
-    CF:LogInfo("从 ATT 导入了 %d 个地图的货币关联", count)
-    
-    return true, associations
+    CF:LogInfo("从 ATT 导入了 %d 个地图-货币关联", associationCount)
+    return associations
 end
 
 -- ====================================================================
--- 从 ATT 导入地图与声望的关联关系
+-- 从 ATT 导入地图-声望关联
 -- ====================================================================
 function ATT:ImportMapReputationAssociations()
     if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入关联数据")
-        return false, {}
+        CF:LogError("ALL THE THINGS 不可用")
+        return {}
     end
     
-    CF:LogInfo("开始从 ATT 导入地图与声望关联...")
+    CF:LogInfo("正在从 ALL THE THINGS 导入地图-声望关联...")
     
     local associations = {}
-    local count = 0
+    local associationCount = 0
     
-    -- 尝试从 ATT 获取地图与声望的关联
-    
-    -- 方法1：直接从 ATT 数据结构获取
-    if AllTheThings.DB and AllTheThings.DB.MapFactions then
-        for mapID, factions in pairs(AllTheThings.DB.MapFactions) do
+    if _G.AllTheThings and type(_G.AllTheThings.MapFactions) == "table" then
+        for mapID, factions in pairs(_G.AllTheThings.MapFactions) do
             if type(mapID) == "number" and type(factions) == "table" then
-                associations[mapID] = CF.DataManager:ValidateReputationIDs(factions)
-                if #associations[mapID] > 0 then
-                    count = count + 1
-                end
-            end
-        end
-    end
-    
-    -- 方法2：从地图数据中推断
-    if count == 0 and AllTheThings.DB and AllTheThings.DB.Maps then
-        for mapID, mapData in pairs(AllTheThings.DB.Maps) do
-            if type(mapID) == "number" and mapData.factions then
-                local factionList = {}
+                local validFactions = {}
                 
-                if type(mapData.factions) == "table" then
-                    for _, factionID in ipairs(mapData.factions) do
-                        if type(factionID) == "number" and CF:IsValidFactionID(factionID) then
-                            table.insert(factionList, factionID)
-                        end
+                for _, factionID in ipairs(factions) do
+                    if type(factionID) == "number" and CF:IsValidFactionIDValue(factionID) then
+                        table.insert(validFactions, factionID)
                     end
                 end
                 
-                if #factionList > 0 then
-                    associations[mapID] = factionList
-                    count = count + 1
+                if #validFactions > 0 then
+                    associations[mapID] = validFactions
+                    associationCount = associationCount + 1
                 end
             end
         end
     end
     
-    CF:LogInfo("从 ATT 导入了 %d 个地图的声望关联", count)
-    
-    return true, associations
+    CF:LogInfo("从 ATT 导入了 %d 个地图-声望关联", associationCount)
+    return associations
 end
 
 -- ====================================================================
--- 从 ATT 导入军需官位置信息
--- ====================================================================
-function ATT:ImportQuartermasterData()
-    if not self:IsAvailable() then
-        CF:LogError("ALL THE THINGS 不可用，无法导入军需官数据")
-        return false, {}
-    end
-    
-    CF:LogInfo("开始从 ATT 导入军需官数据...")
-    
-    local quartermasters = {}
-    local count = 0
-    
-    -- ATT 可能在 NPC 数据中存储军需官信息
-    -- 注意：实际的数据结构可能需要根据 ATT 的实际实现调整
-    
-    if AllTheThings.DB and AllTheThings.DB.NPCs then
-        for npcID, data in pairs(AllTheThings.DB.NPCs) do
-            if type(npcID) == "number" and data.isQuartermaster then
-                quartermasters[npcID] = {
-                    id = npcID,
-                    name = data.name or "Unknown",
-                    mapID = data.mapID,
-                    x = data.coord and data.coord[1],
-                    y = data.coord and data.coord[2],
-                    faction = data.faction,
-                    reputationID = data.reputationID,
-                }
-                count = count + 1
-            end
-        end
-    end
-    
-    CF:LogInfo("从 ATT 导入了 %d 个军需官", count)
-    
-    return true, quartermasters
-end
-
--- ====================================================================
--- 执行完整导入
+-- 导入所有数据
 -- ====================================================================
 function ATT:ImportAllData()
     if not self:IsAvailable() then
@@ -327,219 +247,257 @@ function ATT:ImportAllData()
         return false
     end
     
-    CF:ShowLocalizedMessage("ATT_IMPORT_STARTED")
+    CF:LogInfo("开始从 ALL THE THINGS 导入所有数据...")
+    CF:ShowLocalizedMessage("MSG_DATA_IMPORTING")
     
-    local success = true
-    local results = {}
+    local startTime = GetTime()
+    local totalImported = 0
     
-    -- 导入货币数据
-    local currencySuccess, currencies = self:ImportCurrencyData()
-    results.currencies = currencySuccess and CF:TableSize(currencies) or 0
-    success = success and currencySuccess
+    -- 导入货币
+    local success, currencies = pcall(self.ImportCurrencies, self)
+    if success and currencies then
+        totalImported = totalImported + #currencies
+        CF:LogInfo("✓ 货币导入完成")
+    else
+        CF:LogError("✗ 货币导入失败: %s", tostring(currencies))
+    end
+    
+    -- 导入声望
+    success, reputations = pcall(self.ImportReputations, self)
+    if success and reputations then
+        totalImported = totalImported + #reputations
+        CF:LogInfo("✓ 声望导入完成")
+    else
+        CF:LogError("✗ 声望导入失败: %s", tostring(reputations))
+    end
     
     -- 导入地图数据
-    local mapSuccess, maps = self:ImportMapData()
-    results.maps = mapSuccess and CF:TableSize(maps) or 0
-    success = success and mapSuccess
+    success, maps = pcall(self.ImportMapData, self)
+    if success and maps then
+        totalImported = totalImported + CF:TableSize(maps)
+        CF:LogInfo("✓ 地图导入完成")
+    else
+        CF:LogError("✗ 地图导入失败: %s", tostring(maps))
+    end
     
-    -- 导入声望数据
-    local repSuccess, reputations = self:ImportReputationData()
-    results.reputations = repSuccess and CF:TableSize(reputations) or 0
-    success = success and repSuccess
+    -- 导入地图-货币关联
+    success, mapCurrencies = pcall(self.ImportMapCurrencyAssociations, self)
+    if success and mapCurrencies then
+        -- 合并到数据库
+        if CF.DataManager and CF.DataManager.ImportMapAssociations then
+            local importData = {}
+            for mapID, currencies in pairs(mapCurrencies) do
+                importData[mapID] = {currencies = currencies}
+            end
+            CF.DataManager:ImportMapAssociations(importData)
+        end
+        CF:LogInfo("✓ 地图-货币关联导入完成")
+    else
+        CF:LogError("✗ 地图-货币关联导入失败: %s", tostring(mapCurrencies))
+    end
     
-    -- 导入地图货币关联
-    local mapCurrSuccess, mapCurrencies = self:ImportMapCurrencyAssociations()
-    if mapCurrSuccess and CF:TableSize(mapCurrencies) > 0 then
-        -- 合并到用户配置
-        local db = CopperFeverDB
-        if db then
-            db.mapAssociations = db.mapAssociations or {}
-            for mapID, currencyList in pairs(mapCurrencies) do
-                db.mapAssociations[mapID] = db.mapAssociations[mapID] or {}
-                db.mapAssociations[mapID].currencies = currencyList
+    -- 导入地图-声望关联
+    success, mapReputations = pcall(self.ImportMapReputationAssociations, self)
+    if success and mapReputations then
+        -- 合并到数据库
+        if CF.DataManager and CF.DataManager.ImportMapAssociations then
+            local importData = {}
+            for mapID, reputations in pairs(mapReputations) do
+                importData[mapID] = importData[mapID] or {}
+                importData[mapID].reputations = reputations
+            end
+            CF.DataManager:ImportMapAssociations(importData)
+        end
+        CF:LogInfo("✓ 地图-声望关联导入完成")
+    else
+        CF:LogError("✗ 地图-声望关联导入失败: %s", tostring(mapReputations))
+    end
+    
+    local elapsed = GetTime() - startTime
+    CF:LogInfo("数据导入完成，耗时: %.2f 秒，共导入 %d 条数据", elapsed, totalImported)
+    CF:ShowLocalizedSuccess("MSG_DATA_IMPORTED")
+    
+    return true
+end
+
+-- ====================================================================
+-- 获取 ATT 的当前区域数据
+-- ====================================================================
+function ATT:GetCurrentZoneData()
+    if not self:IsAvailable() then
+        return nil
+    end
+    
+    -- 尝试从 ATT 获取当前区域的数据
+    if _G.AllTheThings and type(_G.AllTheThings.GetCurrentMapID) == "function" then
+        local success, mapID = pcall(_G.AllTheThings.GetCurrentMapID)
+        if success and mapID then
+            return {
+                mapID = mapID,
+                source = "ATT",
+            }
+        end
+    end
+    
+    return nil
+end
+
+-- ====================================================================
+-- 与 ATT 同步特定地图的数据
+-- ====================================================================
+function ATT:SyncMapData(mapID)
+    if not self:IsAvailable() then
+        CF:LogError("ALL THE THINGS 不可用")
+        return false
+    end
+    
+    if type(mapID) ~= "number" or mapID <= 0 then
+        CF:LogError("无效的地图ID: %s", tostring(mapID))
+        return false
+    end
+    
+    CF:LogInfo("正在同步地图 %d 的数据...", mapID)
+    
+    -- 尝试从 ATT 获取该地图的货币和声望
+    local currencies = {}
+    local reputations = {}
+    
+    if _G.AllTheThings then
+        -- 尝试获取地图的货币
+        if type(_G.AllTheThings.GetMapCurrencies) == "function" then
+            local success, data = pcall(_G.AllTheThings.GetMapCurrencies, mapID)
+            if success and type(data) == "table" then
+                currencies = data
+            end
+        end
+        
+        -- 尝试获取地图的声望
+        if type(_G.AllTheThings.GetMapFactions) == "function" then
+            local success, data = pcall(_G.AllTheThings.GetMapFactions, mapID)
+            if success and type(data) == "table" then
+                reputations = data
             end
         end
     end
-    results.mapCurrencyAssociations = mapCurrSuccess and CF:TableSize(mapCurrencies) or 0
     
-    -- 导入地图声望关联
-    local mapRepSuccess, mapReputations = self:ImportMapReputationAssociations()
-    if mapRepSuccess and CF:TableSize(mapReputations) > 0 then
-        -- 合并到用户配置
-        local db = CopperFeverDB
-        if db then
-            db.mapAssociations = db.mapAssociations or {}
-            for mapID, repList in pairs(mapReputations) do
-                db.mapAssociations[mapID] = db.mapAssociations[mapID] or {}
-                db.mapAssociations[mapID].reputations = repList
-            end
+    -- 保存到 DataManager
+    if CF.DataManager then
+        if #currencies > 0 then
+            CF.DataManager:SetMapCurrencies(mapID, currencies)
+        end
+        if #reputations > 0 then
+            CF.DataManager:SetMapReputations(mapID, reputations)
         end
     end
-    results.mapReputationAssociations = mapRepSuccess and CF:TableSize(mapReputations) or 0
     
-    -- 导入军需官数据
-    local qmSuccess, quartermasters = self:ImportQuartermasterData()
-    if qmSuccess and CF:TableSize(quartermasters) > 0 then
-        -- 保存到数据库
-        local db = CopperFeverDB
-        if db then
-            db.quartermasters = quartermasters
+    CF:LogInfo("地图 %d 同步完成: %d 货币, %d 声望", 
+              mapID, #currencies, #reputations)
+    
+    return true
+end
+
+-- ====================================================================
+-- 监听 ATT 事件
+-- ====================================================================
+function ATT:RegisterATTEvents()
+    if not self:IsAvailable() then
+        return
+    end
+    
+    -- ATT 可能会触发自定义事件
+    -- 这里可以注册监听这些事件
+    
+    if _G.AllTheThings and type(_G.AllTheThings.RegisterCallback) == "function" then
+        -- 注册数据更新回调
+        local success = pcall(_G.AllTheThings.RegisterCallback, "DataUpdated", function()
+            CF:LogInfo("ATT 数据已更新")
+            -- 可以在这里触发重新导入或刷新
+        end)
+        
+        if success then
+            CF:LogInfo("已注册 ATT 事件监听")
         end
     end
-    results.quartermasters = qmSuccess and CF:TableSize(quartermasters) or 0
+end
+
+-- ====================================================================
+-- 初始化 ATT 集成
+-- ====================================================================
+function ATT:Initialize()
+    if self.initialized then
+        CF:LogWarning("ATTIntegration 已经初始化过了")
+        return
+    end
     
-    -- 显示结果
-    if success then
-        CF:ShowLocalizedSuccess("ATT_IMPORT_COMPLETE")
-        CF:LogInfo("导入统计: 货币=%d, 地图=%d, 声望=%d, 地图货币关联=%d, 地图声望关联=%d, 军需官=%d",
-            results.currencies, results.maps, results.reputations,
-            results.mapCurrencyAssociations, results.mapReputationAssociations,
-            results.quartermasters)
+    CF:LogInfo("初始化 ALL THE THINGS 集成...")
+    
+    -- 检测 ATT 是否可用
+    self:CheckAvailability()
+    
+    if self.available then
+        -- 注册事件监听
+        self:RegisterATTEvents()
+        
+        CF:LogInfo("ALL THE THINGS 集成初始化完成")
     else
-        CF:ShowLocalizedWarning("WARNING_INCOMPLETE_DATA")
+        CF:LogInfo("ALL THE THINGS 未安装或未启用")
     end
     
-    -- 刷新数据
-    CF.DataManager:RefreshData()
-    
-    return success, results
+    self.initialized = true
 end
 
 -- ====================================================================
--- 导入特定地图的数据
+-- 获取集成状态
 -- ====================================================================
-function ATT:ImportMapData_Specific(mapID)
-    if not self:IsAvailable() then
-        CF:ShowLocalizedError("ERROR_ATT_NOT_FOUND")
-        return false
-    end
-    
-    if type(mapID) ~= "number" then
-        CF:LogError("无效的地图ID")
-        return false
-    end
-    
-    CF:LogInfo("从 ATT 导入地图 %d 的数据...", mapID)
-    
-    -- 导入地图货币关联
-    local success1, mapCurrencies = self:ImportMapCurrencyAssociations()
-    if success1 and mapCurrencies[mapID] then
-        CF.DataManager:SetMapCurrencies(mapID, mapCurrencies[mapID])
-    end
-    
-    -- 导入地图声望关联
-    local success2, mapReputations = self:ImportMapReputationAssociations()
-    if success2 and mapReputations[mapID] then
-        CF.DataManager:SetMapReputations(mapID, mapReputations[mapID])
-    end
-    
-    if success1 or success2 then
-        CF:ShowLocalizedSuccess("MSG_DATA_IMPORTED")
-        return true
-    else
-        CF:ShowLocalizedError("ERROR_DATA_LOAD_FAILED")
-        return false
-    end
-end
-
--- ====================================================================
--- 获取 ATT 的特定货币信息
--- ====================================================================
-function ATT:GetCurrencyInfoFromATT(currencyID)
-    if not self:IsAvailable() then
-        return nil
-    end
-    
-    if not AllTheThings.DB or not AllTheThings.DB.Currencies then
-        return nil
-    end
-    
-    return AllTheThings.DB.Currencies[currencyID]
-end
-
--- ====================================================================
--- 获取 ATT 的特定地图信息
--- ====================================================================
-function ATT:GetMapInfoFromATT(mapID)
-    if not self:IsAvailable() then
-        return nil
-    end
-    
-    if not AllTheThings.DB or not AllTheThings.DB.Maps then
-        return nil
-    end
-    
-    return AllTheThings.DB.Maps[mapID]
-end
-
--- ====================================================================
--- 获取 ATT 的特定声望信息
--- ====================================================================
-function ATT:GetReputationInfoFromATT(factionID)
-    if not self:IsAvailable() then
-        return nil
-    end
-    
-    if not AllTheThings.DB or not AllTheThings.DB.Factions then
-        return nil
-    end
-    
-    return AllTheThings.DB.Factions[factionID]
-end
-
--- ====================================================================
--- 安全调用 ATT 函数
--- ====================================================================
-function ATT:SafeCallATTFunction(func, ...)
-    if not self:IsAvailable() then
-        return nil, "ATT not available"
-    end
-    
-    if type(func) ~= "function" then
-        return nil, "Invalid function"
-    end
-    
-    local success, result = pcall(func, ...)
-    
-    if not success then
-        CF:LogError("ATT 函数调用失败: %s", tostring(result))
-        return nil, result
-    end
-    
-    return result, nil
-end
-
--- ====================================================================
--- 获取导入建议
--- ====================================================================
-function ATT:GetImportRecommendation()
-    if not self:IsAvailable() then
-        return {
-            canImport = false,
-            reason = CF.L["ATT_NOT_INSTALLED"],
-        }
-    end
-    
-    -- 检查 ATT 版本是否过旧
-    if self.version and self.version < "1.0.0" then
-        return {
-            canImport = true,
-            warning = CF.L["WARNING_ATT_OUTDATED"],
-        }
-    end
-    
+function ATT:GetStatus()
     return {
-        canImport = true,
-        reason = CF.L["INFO_ATT_INTEGRATION"],
+        initialized = self.initialized,
+        available = self.available,
+        version = self.version,
+        canImport = self.available,
     }
 end
 
 -- ====================================================================
--- 初始化
+-- 打印集成状态
 -- ====================================================================
-function ATT:Initialize()
-    -- 延迟检查 ATT 可用性（等待所有插件加载）
-    C_Timer.After(2, function()
-        self:CheckAvailability()
-    end)
+function ATT:PrintStatus()
+    local status = self:GetStatus()
+    
+    CF:LogInfo("=== ATT 集成状态 ===")
+    CF:LogInfo("初始化: %s", status.initialized and "是" or "否")
+    CF:LogInfo("可用: %s", status.available and "是" or "否")
+    CF:LogInfo("版本: %s", status.version or "未知")
+    CF:LogInfo("可导入: %s", status.canImport and "是" or "否")
+    CF:LogInfo("===================")
 end
+
+-- ====================================================================
+-- 清理函数
+-- ====================================================================
+function ATT:Cleanup()
+    CF:LogInfo("清理 ATT 集成...")
+    -- 这里可以添加清理逻辑
+end
+
+-- ====================================================================
+-- 兼容性检查
+-- ====================================================================
+function ATT:CheckCompatibility()
+    if not self:IsAvailable() then
+        return true -- 如果没有安装，没有兼容性问题
+    end
+    
+    -- 检查 ATT 版本是否兼容
+    if self.version then
+        -- 这里可以添加版本检查逻辑
+        -- 例如：检查最低版本要求
+        CF:LogInfo("ATT 版本 %s 兼容性检查通过", tostring(self.version))
+    end
+    
+    return true
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

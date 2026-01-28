@@ -16,6 +16,15 @@ L["ADDON_VERSION"] = "Version"
 L["AUTHOR"] = "Author"
 
 -- ====================================================================
+-- 核心初始化文本
+-- ====================================================================
+L["CORE_INIT_LINE1"] = "======================================"
+L["CORE_INIT_LINE2"] = "Copper Fever v%s"
+L["CORE_INIT_LINE3"] = "Track currencies and reputations"
+L["CORE_INIT_LINE4"] = "by David W Zhang"
+L["CORE_INIT_LINE5"] = "======================================"
+
+-- ====================================================================
 -- 主界面文本
 -- ====================================================================
 L["MAIN_FRAME_TITLE"] = "Copper Fever"
@@ -47,6 +56,8 @@ L["DISPLAY_SPACING"] = "Spacing"
 L["DISPLAY_SHOW_ICONS"] = "Show Icons"
 L["DISPLAY_SHOW_TOOLTIPS"] = "Show Tooltips"
 L["DISPLAY_AUTO_HIDE"] = "Auto Hide in Irrelevant Zones"
+L["DISPLAY_HIDE_IN_COMBAT"] = "Hide in Combat"
+L["DISPLAY_SHOW_ZONE_MESSAGES"] = "Show Zone Change Messages"
 
 -- 窗口设置
 L["WINDOW_LOCKED"] = "Lock Window"
@@ -65,6 +76,7 @@ L["DATA_SHOW_ALL_CURRENCIES"] = "Show All Currencies"
 L["DATA_IMPORT_FROM_ATT"] = "Import from ALL THE THINGS"
 L["DATA_EXPORT"] = "Export Data"
 L["DATA_IMPORT"] = "Import Data"
+L["ATT_DATA_SOURCE_HEADER"] = "ALL THE THINGS Data Sources"
 L["DATA_RESET"] = "Reset to Default"
 
 -- 地图和资源配置
@@ -126,6 +138,18 @@ L["DEBUG_LEVEL_DEBUG"] = "Debug"
 L["DEBUG_LEVEL_TRACE"] = "Trace"
 
 -- ====================================================================
+-- 声望等级文本
+-- ====================================================================
+L["REPUTATION_STANDING_1"] = "Hated"
+L["REPUTATION_STANDING_2"] = "Hostile"
+L["REPUTATION_STANDING_3"] = "Unfriendly"
+L["REPUTATION_STANDING_4"] = "Neutral"
+L["REPUTATION_STANDING_5"] = "Friendly"
+L["REPUTATION_STANDING_6"] = "Honored"
+L["REPUTATION_STANDING_7"] = "Revered"
+L["REPUTATION_STANDING_8"] = "Exalted"
+
+-- ====================================================================
 -- 按钮文本
 -- ====================================================================
 L["BUTTON_SAVE"] = "Save"
@@ -153,12 +177,24 @@ L["TOOLTIP_CURRENCY_CLICK"] = "Click to view currency details"
 L["TOOLTIP_REPUTATION_CLICK"] = "Click to view reputation details"
 
 -- ====================================================================
+-- 菜单文本
+-- ====================================================================
+L["MENU_TOGGLE_WINDOW"] = "Toggle Window"
+L["MENU_LOCK_WINDOW"] = "Lock Window"
+L["MENU_UNLOCK_WINDOW"] = "Unlock Window"
+L["MENU_RESET_POSITION"] = "Reset Position"
+L["MENU_SETTINGS"] = "Settings"
+L["MENU_REFRESH_DATA"] = "Refresh Data"
+L["MENU_IMPORT_ATT"] = "Import from ATT"
+
+-- ====================================================================
 -- 系统消息文本
 -- ====================================================================
 L["MSG_SETTINGS_SAVED"] = "Settings saved successfully!"
 L["MSG_SETTINGS_RESET"] = "Settings reset to default!"
 L["MSG_DATA_IMPORTED"] = "Data imported successfully!"
 L["MSG_DATA_EXPORTED"] = "Data exported successfully!"
+L["MSG_DATA_IMPORTING"] = "Importing data from ALL THE THINGS..."
 L["MSG_POSITION_RESET"] = "Window position reset!"
 L["MSG_CURRENCY_ADDED"] = "Currency added: %s"
 L["MSG_CURRENCY_REMOVED"] = "Currency removed: %s"
@@ -172,6 +208,7 @@ L["MSG_MAP_CHANGED"] = "Entered: %s"
 L["ERROR_INVALID_CURRENCY"] = "Invalid currency ID: %s"
 L["ERROR_INVALID_MAP"] = "Invalid map ID: %s"
 L["ERROR_INVALID_REPUTATION"] = "Invalid reputation ID: %s"
+L["ERROR_INVALID_PARAMETER"] = "Invalid parameter"
 L["ERROR_DATA_LOAD_FAILED"] = "Failed to load data"
 L["ERROR_DATA_SAVE_FAILED"] = "Failed to save data"
 L["ERROR_API_CALL_FAILED"] = "API call failed: %s"
@@ -186,11 +223,12 @@ L["WARNING_INCOMPLETE_DATA"] = "Data may be incomplete"
 L["WARNING_ATT_OUTDATED"] = "ALL THE THINGS addon may be outdated"
 L["WARNING_RESET_CONFIRM"] = "Are you sure you want to reset all settings?"
 L["WARNING_DELETE_CONFIRM"] = "Are you sure you want to delete this item?"
+L["WARNING_DATA_RECOVERED"] = "Data corruption detected and recovered"
 
 -- ====================================================================
 -- 信息消息文本
 -- ====================================================================
-L["INFO_FIRST_RUN"] = "Thank you for using Copper Fever! Right-click the minimap button to open settings."
+L["INFO_FIRST_RUN"] = "Thank you for using Copper Fever! Type /cf or /copperfever to see commands."
 L["INFO_ZONE_NO_CURRENCIES"] = "No tracked currencies for this zone"
 L["INFO_CONFIGURE_ZONE"] = "Click here to configure this zone"
 L["INFO_ATT_INTEGRATION"] = "ALL THE THINGS integration available"
@@ -203,164 +241,18 @@ L["TIME_SECOND"] = "s"
 L["TIME_MINUTE"] = "m"
 L["TIME_HOUR"] = "h"
 L["TIME_DAY"] = "d"
-L["TIME_WEEK"] = "w"
 
 -- ====================================================================
--- 数字单位文本（英文使用K/M）
+-- 数字单位文本（英文）
 -- ====================================================================
-L["NUMBER_THOUSAND"] = "K"
-L["NUMBER_MILLION"] = "M"
-L["NUMBER_BILLION"] = "B"
+L["NUMBER_K"] = "K"
+L["NUMBER_M"] = "M"
 
 -- ====================================================================
--- 货币和资源通用文本
+-- 斜杠命令帮助文本
 -- ====================================================================
-L["GOLD"] = "Gold"
-L["SILVER"] = "Silver"
-L["COPPER"] = "Copper"
-L["MONEY"] = "Money"
-
--- ====================================================================
--- 声望文本
--- ====================================================================
-L["REPUTATION_LEVEL"] = "Reputation Level"
-L["REPUTATION_STANDING_0"] = "Hated"
-L["REPUTATION_STANDING_1"] = "Hostile"
-L["REPUTATION_STANDING_2"] = "Unfriendly"
-L["REPUTATION_STANDING_3"] = "Neutral"
-L["REPUTATION_STANDING_4"] = "Friendly"
-L["REPUTATION_STANDING_5"] = "Honored"
-L["REPUTATION_STANDING_6"] = "Revered"
-L["REPUTATION_STANDING_7"] = "Exalted"
-L["REPUTATION_STANDING_8"] = "Paragon"
-
--- ====================================================================
--- 地图类型文本
--- ====================================================================
-L["MAP_TYPE_COSMIC"] = "Cosmic"
-L["MAP_TYPE_WORLD"] = "World"
-L["MAP_TYPE_CONTINENT"] = "Continent"
-L["MAP_TYPE_ZONE"] = "Zone"
-L["MAP_TYPE_DUNGEON"] = "Dungeon"
-L["MAP_TYPE_MICRO"] = "Micro"
-L["MAP_TYPE_ORPHAN"] = "Orphan"
-
--- ====================================================================
--- 右键菜单文本
--- ====================================================================
-L["MENU_SHOW_WINDOW"] = "Show Window"
-L["MENU_HIDE_WINDOW"] = "Hide Window"
-L["MENU_LOCK_WINDOW"] = "Lock Window"
-L["MENU_UNLOCK_WINDOW"] = "Unlock Window"
-L["MENU_SETTINGS"] = "Settings"
-L["MENU_RESET_POSITION"] = "Reset Position"
-L["MENU_REFRESH_DATA"] = "Refresh Data"
-
--- ====================================================================
--- 搜索和过滤文本
--- ====================================================================
-L["SEARCH"] = "Search"
-L["SEARCH_PLACEHOLDER"] = "Search..."
-L["FILTER"] = "Filter"
-L["FILTER_ALL"] = "All"
-L["FILTER_BY_EXPANSION"] = "By Expansion"
-L["FILTER_BY_TYPE"] = "By Type"
-L["FILTER_BY_FACTION"] = "By Faction"
-L["CLEAR_FILTER"] = "Clear Filter"
-
--- ====================================================================
--- 排序文本
--- ====================================================================
-L["SORT_BY"] = "Sort By"
-L["SORT_NAME"] = "Name"
-L["SORT_AMOUNT"] = "Amount"
-L["SORT_TYPE"] = "Type"
-L["SORT_ASCENDING"] = "Ascending"
-L["SORT_DESCENDING"] = "Descending"
-
--- ====================================================================
--- 帮助和关于文本
--- ====================================================================
-L["HELP"] = "Help"
-L["ABOUT"] = "About"
-L["VERSION_INFO"] = "Version Information"
-L["REPORT_BUG"] = "Report a Bug"
-L["FEATURE_REQUEST"] = "Feature Request"
-L["DISCORD"] = "Discord"
-L["GITHUB"] = "GitHub"
-L["CURSEFORGE"] = "CurseForge"
-
--- ====================================================================
--- 键盘绑定文本
--- ====================================================================
-L["KEYBIND_TOGGLE_WINDOW"] = "Toggle Main Window"
-L["KEYBIND_TOGGLE_CONFIG"] = "Toggle Settings"
-L["KEYBIND_REFRESH"] = "Refresh Data"
-
--- ====================================================================
--- 导入导出文本
--- ====================================================================
-L["IMPORT_EXPORT_TITLE"] = "Import/Export"
-L["IMPORT_STRING"] = "Import String"
-L["EXPORT_STRING"] = "Export String"
-L["COPY_TO_CLIPBOARD"] = "Copy to Clipboard"
-L["PASTE_FROM_CLIPBOARD"] = "Paste from Clipboard"
-L["IMPORT_SUCCESS"] = "Import successful!"
-L["IMPORT_FAILED"] = "Import failed!"
-L["EXPORT_SUCCESS"] = "Export successful!"
-
--- ====================================================================
--- 状态文本
--- ====================================================================
-L["STATUS_ENABLED"] = "Enabled"
-L["STATUS_DISABLED"] = "Disabled"
-L["STATUS_ACTIVE"] = "Active"
-L["STATUS_INACTIVE"] = "Inactive"
-L["STATUS_LOADING"] = "Loading..."
-L["STATUS_READY"] = "Ready"
-L["STATUS_ERROR"] = "Error"
-
--- ====================================================================
--- 战斗文本
--- ====================================================================
-L["IN_COMBAT"] = "In Combat"
-L["OUT_OF_COMBAT"] = "Out of Combat"
-L["COMBAT_LOCKDOWN"] = "Cannot change settings during combat"
-
--- ====================================================================
--- 数据同步文本
--- ====================================================================
-L["SYNC_ENABLED"] = "Data Sync Enabled"
-L["SYNC_DISABLED"] = "Data Sync Disabled"
-L["SYNC_IN_PROGRESS"] = "Syncing..."
-L["SYNC_COMPLETE"] = "Sync Complete"
-L["SYNC_FAILED"] = "Sync Failed"
-
--- ====================================================================
--- ALL THE THINGS 集成文本
--- ====================================================================
-L["ATT_INTEGRATION"] = "ALL THE THINGS Integration"
-L["ATT_NOT_INSTALLED"] = "ALL THE THINGS is not installed"
-L["ATT_IMPORT_DATA"] = "Import Data from ATT"
-L["ATT_IMPORT_MAPS"] = "Import Map Data"
-L["ATT_IMPORT_CURRENCIES"] = "Import Currency Data"
-L["ATT_IMPORT_REPUTATIONS"] = "Import Reputation Data"
-L["ATT_IMPORT_ALL"] = "Import All Data"
-L["ATT_IMPORT_STARTED"] = "Starting import from ALL THE THINGS..."
-L["ATT_IMPORT_COMPLETE"] = "Import from ALL THE THINGS complete!"
-
--- ====================================================================
--- 核心和命令文本
--- ====================================================================
-L["CORE_INIT_LINE1"] = "==========================================="
-L["CORE_INIT_LINE2"] = "  Copper Fever v%s"
-L["CORE_INIT_LINE3"] = "  Author: David W Zhang"
-L["CORE_INIT_LINE4"] = "  Type /cf help for commands"
-L["CORE_INIT_LINE5"] = "==========================================="
-L["CMD_DEBUG_ENABLED"] = "Debug mode enabled"
-L["CMD_DEBUG_DISABLED"] = "Debug mode disabled"
-L["CMD_HELP_HEADER"] = "=== Copper Fever Commands ==="
-L["CMD_HELP_TOGGLE"] = "/cf - Toggle main window"
+L["CMD_HELP_HEADER"] = "Copper Fever Commands:"
+L["CMD_HELP_TOGGLE"] = "/cf or /cf toggle - Toggle main window"
 L["CMD_HELP_CONFIG"] = "/cf config - Open settings"
 L["CMD_HELP_REFRESH"] = "/cf refresh - Refresh data"
 L["CMD_HELP_RESET"] = "/cf reset - Reset window position"
@@ -369,11 +261,157 @@ L["CMD_HELP_ATT"] = "/cf att - Import from ALL THE THINGS"
 L["CMD_HELP_DEBUG"] = "/cf debug - Toggle debug mode"
 L["CMD_HELP_VERSION"] = "/cf version - Show version info"
 L["CMD_HELP_HELP"] = "/cf help - Show this help"
-L["CMD_INVALID_PARAM"] = "Invalid command. Type '/cf help' for available commands."
+L["CMD_INVALID_PARAM"] = "Type /cf help for a list of commands"
+L["CMD_DEBUG_ENABLED"] = "Debug mode enabled"
+L["CMD_DEBUG_DISABLED"] = "Debug mode disabled"
 L["CMD_BUILD"] = "Build"
 
 -- ====================================================================
--- 注册英文本地化
+-- 配置面板分组标题
+-- ====================================================================
+L["CONFIG_GROUP_APPEARANCE"] = "Appearance"
+L["CONFIG_GROUP_BEHAVIOR"] = "Behavior"
+L["CONFIG_GROUP_DATA_SOURCES"] = "Data Sources"
+L["CONFIG_GROUP_FILTERS"] = "Filters"
+
+-- ====================================================================
+-- 配置选项描述
+-- ====================================================================
+L["CONFIG_DESC_LAYOUT"] = "Choose how items are arranged in the tracker"
+L["CONFIG_DESC_ICON_SIZE"] = "Size of currency and reputation icons"
+L["CONFIG_DESC_FONT_SIZE"] = "Size of text in the tracker"
+L["CONFIG_DESC_AUTO_HIDE"] = "Hide tracker when no relevant currencies are found"
+L["CONFIG_DESC_HIDE_IN_COMBAT"] = "Automatically hide tracker during combat"
+L["CONFIG_DESC_SHOW_ZONE_MESSAGES"] = "Show a message when entering a new zone"
+L["CONFIG_DESC_AUTO_UPDATE"] = "Automatically refresh currency data"
+L["CONFIG_DESC_UPDATE_INTERVAL"] = "How often to refresh data (in seconds)"
+
+-- ====================================================================
+-- 工具提示详细文本
+-- ====================================================================
+L["TOOLTIP_CURRENCY_AMOUNT"] = "Amount: %s"
+L["TOOLTIP_CURRENCY_MAX"] = "Maximum: %s"
+L["TOOLTIP_CURRENCY_WEEKLY"] = "Weekly: %s / %s"
+L["TOOLTIP_CURRENCY_TYPE"] = "Type: %s"
+L["TOOLTIP_REPUTATION_STANDING"] = "Standing: %s"
+L["TOOLTIP_REPUTATION_PROGRESS"] = "Progress: %d / %d (%.1f%%)"
+L["TOOLTIP_REPUTATION_FACTION"] = "Faction: %s"
+
+-- ====================================================================
+-- 空状态文本
+-- ====================================================================
+L["EMPTY_CURRENCY_LIST"] = "No currencies tracked for this zone"
+L["EMPTY_REPUTATION_LIST"] = "No reputations tracked for this zone"
+L["EMPTY_MAP_LIST"] = "No maps configured"
+L["EMPTY_SEARCH_RESULTS"] = "No results found"
+L["UNKNOWN"] = "Unknown"
+L["UNKNOWN_EXPANSION"] = "Unknown Expansion"
+
+-- ====================================================================
+-- 搜索和过滤文本
+-- ====================================================================
+L["SEARCH_PLACEHOLDER"] = "Search..."
+L["FILTER_ALL"] = "All"
+L["FILTER_CURRENCIES"] = "Currencies"
+L["FILTER_REPUTATIONS"] = "Reputations"
+L["FILTER_CURRENT_ZONE"] = "Current Zone"
+L["FILTER_ALL_ZONES"] = "All Zones"
+
+-- ====================================================================
+-- 状态文本
+-- ====================================================================
+L["STATUS_INITIALIZED"] = "Initialized"
+L["STATUS_LOADING"] = "Loading..."
+L["STATUS_READY"] = "Ready"
+L["STATUS_ERROR"] = "Error"
+L["STATUS_UPDATING"] = "Updating..."
+
+-- ====================================================================
+-- 确认对话框文本
+-- ====================================================================
+L["CONFIRM_RESET_TITLE"] = "Reset Settings"
+L["CONFIRM_RESET_TEXT"] = "Are you sure you want to reset all settings to default?"
+L["CONFIRM_DELETE_TITLE"] = "Delete Item"
+L["CONFIRM_DELETE_TEXT"] = "Are you sure you want to delete this item?"
+L["CONFIRM_IMPORT_TITLE"] = "Import Data"
+L["CONFIRM_IMPORT_TEXT"] = "This will overwrite your current settings. Continue?"
+
+-- ====================================================================
+-- 数据管理文本
+-- ====================================================================
+L["DATA_TOTAL_CURRENCIES"] = "Total Currencies: %d"
+L["DATA_TOTAL_REPUTATIONS"] = "Total Reputations: %d"
+L["DATA_TOTAL_MAPS"] = "Total Maps: %d"
+L["DATA_CACHE_SIZE"] = "Cache Size: %d entries"
+L["DATA_LAST_UPDATE"] = "Last Update: %s"
+
+-- ====================================================================
+-- 成就和进度文本
+-- ====================================================================
+L["PROGRESS_COMPLETE"] = "Complete"
+L["PROGRESS_IN_PROGRESS"] = "In Progress"
+L["PROGRESS_NOT_STARTED"] = "Not Started"
+L["PROGRESS_PERCENTAGE"] = "%d%%"
+
+-- ====================================================================
+-- 右键菜单文本
+-- ====================================================================
+L["CONTEXT_MENU_PIN"] = "Pin to Top"
+L["CONTEXT_MENU_UNPIN"] = "Unpin"
+L["CONTEXT_MENU_HIDE"] = "Hide"
+L["CONTEXT_MENU_REMOVE"] = "Remove from Tracker"
+L["CONTEXT_MENU_COPY_ID"] = "Copy ID"
+
+-- ====================================================================
+-- 导入/导出文本
+-- ====================================================================
+L["IMPORT_EXPORT_TITLE"] = "Import/Export Settings"
+L["IMPORT_SUCCESS"] = "Settings imported successfully"
+L["IMPORT_FAILED"] = "Failed to import settings"
+L["EXPORT_SUCCESS"] = "Settings exported to clipboard"
+L["EXPORT_FAILED"] = "Failed to export settings"
+L["IMPORT_INSTRUCTIONS"] = "Paste your settings string below:"
+L["EXPORT_INSTRUCTIONS"] = "Copy the string below to share your settings:"
+
+-- ====================================================================
+-- 性能和调试文本
+-- ====================================================================
+L["PERF_FPS"] = "FPS: %d"
+L["PERF_MEMORY"] = "Memory: %.2f MB"
+L["PERF_API_CALLS"] = "API Calls: %d"
+L["DEBUG_MODE_ENABLED"] = "Debug mode is enabled"
+L["DEBUG_SHOW_CACHE"] = "Show Cache Stats"
+L["DEBUG_CLEAR_CACHE"] = "Clear All Caches"
+L["DEBUG_RELOAD_DATA"] = "Reload Static Data"
+
+-- ====================================================================
+-- 通知文本
+-- ====================================================================
+L["NOTIFY_NEW_CURRENCY"] = "New currency available: %s"
+L["NOTIFY_REPUTATION_INCREASE"] = "Reputation increased with %s"
+L["NOTIFY_MAX_CURRENCY"] = "Currency %s is at maximum"
+L["NOTIFY_WEEKLY_CAP"] = "Weekly cap reached for %s"
+
+-- ====================================================================
+-- 帮助和教程文本
+-- ====================================================================
+L["HELP_TITLE"] = "Copper Fever Help"
+L["HELP_GETTING_STARTED"] = "Getting Started"
+L["HELP_BASIC_USAGE"] = "Basic Usage"
+L["HELP_ADVANCED_FEATURES"] = "Advanced Features"
+L["HELP_TROUBLESHOOTING"] = "Troubleshooting"
+L["HELP_ABOUT"] = "About"
+
+-- ====================================================================
+-- 关于文本
+-- ====================================================================
+L["ABOUT_DESCRIPTION"] = "Copper Fever is a currency and reputation tracker for World of Warcraft."
+L["ABOUT_AUTHOR_INFO"] = "Created by David W Zhang"
+L["ABOUT_VERSION_INFO"] = "Version %s (Build %d)"
+L["ABOUT_SUPPORT"] = "For support, visit:"
+L["ABOUT_LICENSE"] = "License: All Rights Reserved"
+
+-- ====================================================================
+-- 注册本地化
 -- ====================================================================
 CF:RegisterLocale("enUS", L)
-CF:RegisterLocale("enGB", L)  -- 英国英语使用相同文本

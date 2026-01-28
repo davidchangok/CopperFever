@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Copper Fever - UI\ConfigPanel.lua
--- 设置界面
+-- 配置面板界面
 -- Author: David W Zhang
 -- ====================================================================
 
@@ -12,636 +12,703 @@ local CF = CopperFever
 CF.ConfigPanel = CF.ConfigPanel or {}
 local CP = CF.ConfigPanel
 
--- 面板引用
-CP.panel = nil
-CP.categoryList = nil
-CP.currentCategory = nil
-
--- 设置类别
-CP.categories = {
-    "general",
-    "display",
-    "data",
-    "maps",
-}
+-- 初始化标志
+CP.initialized = false
+CP.frame = nil
+CP.elements = {}
+CP.tempSettings = {}
 
 -- ====================================================================
 -- 创建配置面板
 -- ====================================================================
-function CP:Create()
-    if self.panel then
-        return self.panel
+function CP:CreatePanel()
+    if self.frame then
+        CF:LogWarning("配置面板已经创建")
+        return self.frame
     end
     
-    CF:LogInfo("创建配置面板...")
+    -- 创建主框架
+    local frame = CreateFrame("Frame", "CopperFeverConfigPanel", UIParent, "BackdropTemplate")
+    frame:SetSize(600, 500)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    frame:SetFrameStrata(CF.FRAME_STRATA.CONFIG)
+    frame:SetFrameLevel(10)
+    frame:SetClampedToScreen(true)
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:Hide()
     
-    -- 创建主面板
-    local panel = CreateFrame("Frame", "CopperFeverConfigPanel")
-    panel.name = CF.ADDON_TITLE
-    self.panel = panel
-    
-    -- 创建标题
-    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText(CF.L["CONFIG_TITLE"])
-    
-    -- 创建版本信息
-    local version = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    version:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-    version:SetText(CF:Colorize(CF.L["ADDON_VERSION"] .. ": " .. CF.VERSION, CF.COLORS.GRAY))
-    
-    -- 创建作者信息
-    local author = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    author:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -4)
-    author:SetText(CF:Colorize(CF.L["AUTHOR"] .. ": David W Zhang", CF.COLORS.GRAY))
-    
-    -- 创建分隔线
-    local divider = panel:CreateTexture(nil, "ARTWORK")
-    divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", author, "BOTTOMLEFT", 0, -8)
-    divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, 0)
-    divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
-    
-    -- 创建类别列表（左侧）
-    self:CreateCategoryList(panel, divider)
-    
-    -- 创建内容区域（右侧）
-    self:CreateContentArea(panel, divider)
-    
-    -- 创建按钮区域
-    self:CreateButtonArea(panel)
-    
-    -- 注册到暴雪设置界面
-    if Settings and Settings.RegisterCanvasLayoutCategory then
-        -- 11.0+ 新设置界面
-        local category = Settings.RegisterCanvasLayoutCategory(panel, CF.ADDON_TITLE)
-        Settings.RegisterAddOnCategory(category)
-        self.settingsCategory = category
-    elseif InterfaceOptions_AddCategory then
-        -- 旧版设置界面
-        InterfaceOptions_AddCategory(panel)
-    end
-    
-    -- 设置面板脚本
-    panel:SetScript("OnShow", function()
-        CP:OnShow()
-    end)
-    
-    panel:SetScript("OnHide", function()
-        CP:OnHide()
-    end)
-    
-    CF:LogInfo("配置面板创建完成")
-    
-    return panel
-end
-
--- ====================================================================
--- 创建类别列表
--- ====================================================================
-function CP:CreateCategoryList(parent, topAnchor)
-    local listFrame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    self.categoryList = listFrame
-    
-    listFrame:SetPoint("TOPLEFT", topAnchor, "BOTTOMLEFT", 0, -8)
-    listFrame:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 16, 60)
-    listFrame:SetWidth(150)
-    
-    listFrame:SetBackdrop({
+    -- 设置背景
+    frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
         tile = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        tileSize = 32,
+        edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
-    listFrame:SetBackdropColor(0, 0, 0, 0.5)
+    frame:SetBackdropColor(0, 0, 0, 0.9)
+    frame:SetBackdropBorderColor(1, 0.82, 0, 1)
     
-    -- 创建类别按钮
-    listFrame.buttons = {}
-    for i, category in ipairs(self.categories) do
-        local button = self:CreateCategoryButton(listFrame, category, i)
-        table.insert(listFrame.buttons, button)
-    end
-end
-
--- ====================================================================
--- 创建类别按钮
--- ====================================================================
-function CP:CreateCategoryButton(parent, category, index)
-    local button = CreateFrame("Button", nil, parent)
-    button:SetSize(parent:GetWidth() - 16, 30)
-    button.category = category
-    
-    -- 定位
-    if index == 1 then
-        button:SetPoint("TOPLEFT", parent, "TOPLEFT", 8, -8)
-    else
-        button:SetPoint("TOPLEFT", parent.buttons[index - 1], "BOTTOMLEFT", 0, -4)
-    end
-    
-    -- 背景
-    button.bg = button:CreateTexture(nil, "BACKGROUND")
-    button.bg:SetAllPoints()
-    button.bg:SetColorTexture(0.2, 0.2, 0.2, 0.5)
-    button.bg:Hide()
-    
-    -- 高亮
-    button.highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    button.highlight:SetAllPoints()
-    button.highlight:SetColorTexture(1, 1, 1, 0.1)
-    
-    -- 文本
-    button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    button.text:SetPoint("LEFT", button, "LEFT", 8, 0)
-    
-    -- 设置类别名称
-    local categoryKey = "CONFIG_" .. category:upper()
-    button.text:SetText(CF.L[categoryKey])
-    
-    -- 点击事件
-    button:SetScript("OnClick", function(self)
-        CP:SelectCategory(self.category)
+    -- 拖动事件
+    frame:SetScript("OnDragStart", function(self)
+        self:StartMoving()
     end)
     
-    return button
-end
-
--- ====================================================================
--- 创建内容区域
--- ====================================================================
-function CP:CreateContentArea(parent, topAnchor)
-    local contentFrame = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-    self.contentFrame = contentFrame
-    
-    contentFrame:SetPoint("TOPLEFT", self.categoryList, "TOPRIGHT", 8, 0)
-    contentFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -32, 60)
-    
-    -- 创建滚动子框架
-    local scrollChild = CreateFrame("Frame", nil, contentFrame)
-    contentFrame:SetScrollChild(scrollChild)
-    scrollChild:SetWidth(contentFrame:GetWidth() - 20)
-    scrollChild:SetHeight(1)
-    
-    contentFrame.scrollChild = scrollChild
-    
-    -- 创建各个类别的内容
-    self.categoryFrames = {}
-    self.categoryFrames.general = self:CreateGeneralSettings(scrollChild)
-    self.categoryFrames.display = self:CreateDisplaySettings(scrollChild)
-    self.categoryFrames.data = self:CreateDataSettings(scrollChild)
-    self.categoryFrames.maps = self:CreateMapSettings(scrollChild)
-end
-
--- ====================================================================
--- 创建常规设置
--- ====================================================================
-function CP:CreateGeneralSettings(parent)
-    local frame = CreateFrame("Frame", nil, parent)
-    frame:SetAllPoints(parent)
-    frame:Hide()
-    
-    local yOffset = -10
-    
-    -- 标题
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    title:SetText(CF.L["CONFIG_GENERAL"])
-    yOffset = yOffset - 30
-    
-    -- 显示主窗口复选框
-    local showWindow = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    showWindow:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    showWindow.Text:SetText(CF.L["MENU_SHOW_WINDOW"])
-    showWindow:SetScript("OnClick", function(self)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.mainFrame then
-            db.settings.mainFrame.shown = self:GetChecked()
-            if self:GetChecked() then
-                CF.MainFrame:Show()
-            else
-                CF.MainFrame:Hide()
-            end
-        end
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
     end)
-    frame.showWindow = showWindow
-    yOffset = yOffset - 30
     
-    -- 锁定窗口复选框
-    local lockWindow = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    lockWindow:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    lockWindow.Text:SetText(CF.L["WINDOW_LOCKED"])
-    lockWindow:SetScript("OnClick", function(self)
-        CF.MainFrame:SetLocked(self:GetChecked())
-    end)
-    frame.lockWindow = lockWindow
-    yOffset = yOffset - 30
+    self.frame = frame
     
-    -- 重置位置按钮
-    local resetPos = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    resetPos:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    resetPos:SetSize(150, 25)
-    resetPos:SetText(CF.L["WINDOW_RESET_POSITION"])
-    resetPos:SetScript("OnClick", function()
-        CF.MainFrame:ResetPosition()
-    end)
-    frame.resetPos = resetPos
-    yOffset = yOffset - 35
+    -- 创建子元素
+    self:CreateTitle()
+    self:CreateCloseButton()
+    self:CreateTabs()
+    self:CreateButtons()
     
-    -- 窗口缩放滑块
-    local scaleSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
-    scaleSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
-    scaleSlider:SetMinMaxValues(0.5, 2.0)
-    scaleSlider:SetValueStep(0.1)
-    scaleSlider:SetObeyStepOnDrag(true)
-    scaleSlider.Text:SetText(CF.L["WINDOW_SCALE"])
-    scaleSlider.Low:SetText("0.5")
-    scaleSlider.High:SetText("2.0")
-    scaleSlider:SetScript("OnValueChanged", function(self, value)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.mainFrame then
-            db.settings.mainFrame.scale = value
-            CF.MainFrame:ApplySettings()
-        end
-        self.Value:SetText(string.format("%.1f", value))
-    end)
-    scaleSlider.Value = scaleSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    scaleSlider.Value:SetPoint("TOP", scaleSlider, "BOTTOM", 0, 0)
-    frame.scaleSlider = scaleSlider
-    yOffset = yOffset - 50
-    
-    -- 窗口透明度滑块
-    local alphaSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
-    alphaSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
-    alphaSlider:SetMinMaxValues(0.1, 1.0)
-    alphaSlider:SetValueStep(0.1)
-    alphaSlider:SetObeyStepOnDrag(true)
-    alphaSlider.Text:SetText(CF.L["WINDOW_ALPHA"])
-    alphaSlider.Low:SetText("10%")
-    alphaSlider.High:SetText("100%")
-    alphaSlider:SetScript("OnValueChanged", function(self, value)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.mainFrame then
-            db.settings.mainFrame.alpha = value
-            CF.MainFrame:ApplySettings()
-        end
-        self.Value:SetText(string.format("%.0f%%", value * 100))
-    end)
-    alphaSlider.Value = alphaSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    alphaSlider.Value:SetPoint("TOP", alphaSlider, "BOTTOM", 0, 0)
-    frame.alphaSlider = alphaSlider
-    
+    CF:LogInfo("配置面板创建完成")
     return frame
 end
 
 -- ====================================================================
--- 创建显示设置
+-- 创建标题
 -- ====================================================================
-function CP:CreateDisplaySettings(parent)
-    local frame = CreateFrame("Frame", nil, parent)
-    frame:SetAllPoints(parent)
-    frame:Hide()
+function CP:CreateTitle()
+    if not self.frame then return end
     
-    local yOffset = -10
+    local title = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", self.frame, "TOP", 0, -15)
+    title:SetText(CF:L("CONFIG_TITLE"))
+    title:SetTextColor(1, 0.82, 0)
     
-    -- 标题
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    title:SetText(CF.L["CONFIG_DISPLAY"])
-    yOffset = yOffset - 30
+    self.elements.title = title
+end
+
+-- ====================================================================
+-- 创建关闭按钮
+-- ====================================================================
+function CP:CreateCloseButton()
+    if not self.frame then return end
     
-    -- 布局选择下拉菜单
-    local layoutLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    layoutLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    layoutLabel:SetText(CF.L["DISPLAY_LAYOUT"] .. ":")
-    yOffset = yOffset - 25
+    local closeButton = CreateFrame("Button", nil, self.frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -5, -5)
+    closeButton:SetSize(32, 32)
     
-    local layoutDropdown = CreateFrame("Frame", nil, frame, "UIDropDownMenuTemplate")
-    layoutDropdown:SetPoint("TOPLEFT", frame, "TOPLEFT", -15, yOffset)
+    closeButton:SetScript("OnClick", function()
+        CP:Close()
+    end)
+    
+    self.elements.closeButton = closeButton
+end
+
+-- ====================================================================
+-- 创建标签页
+-- ====================================================================
+function CP:CreateTabs()
+    if not self.frame then return end
+    
+    local tabs = {}
+    local tabNames = {
+        {name = "general", label = CF:L("CONFIG_GENERAL")},
+        {name = "display", label = CF:L("CONFIG_DISPLAY")},
+        {name = "data", label = CF:L("CONFIG_DATA")},
+        {name = "advanced", label = CF:L("CONFIG_ADVANCED")},
+    }
+    
+    for i, tabInfo in ipairs(tabNames) do
+        local tab = CreateFrame("Button", nil, self.frame)
+        tab:SetSize(130, 30)
+        tab:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20 + (i-1) * 135, -45)
+        
+        -- 标签背景
+        tab:SetNormalTexture("Interface\\ChatFrame\\ChatFrameTab-BGLeft")
+        tab:SetHighlightTexture("Interface\\ChatFrame\\ChatFrameTab-BGLeft")
+        
+        -- 标签文本
+        tab.text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        tab.text:SetPoint("CENTER", tab, "CENTER", 0, 0)
+        tab.text:SetText(tabInfo.label)
+        
+        -- 点击事件
+        tab:SetScript("OnClick", function()
+            CP:ShowTab(tabInfo.name)
+        end)
+        
+        tab.name = tabInfo.name
+        tabs[tabInfo.name] = tab
+    end
+    
+    self.elements.tabs = tabs
+    
+    -- 创建标签页内容容器
+    self:CreateTabContents()
+    
+    -- 默认显示第一个标签页
+    self:ShowTab("general")
+end
+
+-- ====================================================================
+-- 创建标签页内容
+-- ====================================================================
+function CP:CreateTabContents()
+    if not self.frame then return end
+    
+    local contents = {}
+    
+    -- 通用设置标签页
+    contents.general = self:CreateGeneralTab()
+    
+    -- 显示设置标签页
+    contents.display = self:CreateDisplayTab()
+    
+    -- 数据设置标签页
+    contents.data = self:CreateDataTab()
+    
+    -- 高级设置标签页
+    contents.advanced = self:CreateAdvancedTab()
+    
+    self.elements.contents = contents
+end
+
+-- ====================================================================
+-- 创建通用设置标签页
+-- ====================================================================
+function CP:CreateGeneralTab()
+    local content = CreateFrame("Frame", nil, self.frame)
+    content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20, -80)
+    content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -20, 50)
+    content:Hide()
+    
+    local yOffset = 0
+    
+    -- 窗口设置组
+    local groupHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    groupHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+    groupHeader:SetText(CF:L("CONFIG_GROUP_APPEARANCE"))
+    groupHeader:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 25
+    
+    -- 窗口缩放
+    local scaleLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    scaleLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    scaleLabel:SetText(CF:L("WINDOW_SCALE"))
+    
+    local scaleSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    scaleSlider:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", 0, -10)
+    scaleSlider:SetSize(200, 20)
+    scaleSlider:SetMinMaxValues(0.5, 1.5)
+    scaleSlider:SetValueStep(0.05)
+    scaleSlider:SetObeyStepOnDrag(true)
+    scaleSlider.Low:SetText("0.5")
+    scaleSlider.High:SetText("1.5")
+    scaleSlider.Text:SetText(CF:L("WINDOW_SCALE"))
+    
+    scaleSlider:SetScript("OnValueChanged", function(self, value)
+        self.Text:SetText(string.format("%s: %.2f", CF:L("WINDOW_SCALE"), value))
+        CP.tempSettings.scale = value
+    end)
+    
+    content.scaleSlider = scaleSlider
+    yOffset = yOffset + 60
+    
+    -- 窗口透明度
+    local alphaLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    alphaLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    alphaLabel:SetText(CF:L("WINDOW_ALPHA"))
+    
+    local alphaSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    alphaSlider:SetPoint("TOPLEFT", alphaLabel, "BOTTOMLEFT", 0, -10)
+    alphaSlider:SetSize(200, 20)
+    alphaSlider:SetMinMaxValues(0.3, 1.0)
+    alphaSlider:SetValueStep(0.05)
+    alphaSlider:SetObeyStepOnDrag(true)
+    alphaSlider.Low:SetText("0.3")
+    alphaSlider.High:SetText("1.0")
+    alphaSlider.Text:SetText(CF:L("WINDOW_ALPHA"))
+    
+    alphaSlider:SetScript("OnValueChanged", function(self, value)
+        self.Text:SetText(string.format("%s: %.2f", CF:L("WINDOW_ALPHA"), value))
+        CP.tempSettings.alpha = value
+    end)
+    
+    content.alphaSlider = alphaSlider
+    yOffset = yOffset + 60
+    
+    -- 锁定窗口复选框
+    local lockCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    lockCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    lockCheckbox.text = lockCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lockCheckbox.text:SetPoint("LEFT", lockCheckbox, "RIGHT", 5, 0)
+    lockCheckbox.text:SetText(CF:L("WINDOW_LOCKED"))
+    
+    lockCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.locked = self:GetChecked()
+    end)
+    
+    content.lockCheckbox = lockCheckbox
+    yOffset = yOffset + 30
+    
+    -- 重置位置按钮
+    local resetButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    resetButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    resetButton:SetSize(150, 25)
+    resetButton:SetText(CF:L("WINDOW_RESET_POSITION"))
+    
+    resetButton:SetScript("OnClick", function()
+        if CF.MainFrame and CF.MainFrame.ResetPosition then
+            CF.MainFrame:ResetPosition()
+        end
+    end)
+    
+    content.resetButton = resetButton
+    yOffset = yOffset + 35
+    
+    return content
+end
+
+-- ====================================================================
+-- 创建显示设置标签页
+-- ====================================================================
+function CP:CreateDisplayTab()
+    local content = CreateFrame("Frame", nil, self.frame)
+    content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20, -80)
+    content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -20, 50)
+    content:Hide()
+    
+    local yOffset = 0
+    
+    -- 布局组
+    local groupHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    groupHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+    groupHeader:SetText(CF:L("CONFIG_GROUP_APPEARANCE"))
+    groupHeader:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 25
+    
+    -- 布局选择
+    local layoutLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    layoutLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    layoutLabel:SetText(CF:L("DISPLAY_LAYOUT"))
+    
+    local layoutDropdown = CreateFrame("Frame", "CopperFeverLayoutDropdown", content, "UIDropDownMenuTemplate")
+    layoutDropdown:SetPoint("TOPLEFT", layoutLabel, "BOTTOMLEFT", -15, -5)
+    
     UIDropDownMenu_SetWidth(layoutDropdown, 150)
     UIDropDownMenu_Initialize(layoutDropdown, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
         
-        info.text = CF.L["LAYOUT_VERTICAL"]
+        info.text = CF:L("LAYOUT_VERTICAL")
         info.value = "vertical"
         info.func = function()
-            local db = CopperFeverDB
-            if db and db.settings and db.settings.display then
-                db.settings.display.layout = "vertical"
-                CF.MainFrame:Update()
-            end
-            UIDropDownMenu_SetSelectedValue(layoutDropdown, "vertical")
+            CP.tempSettings.layout = "vertical"
+            UIDropDownMenu_SetText(layoutDropdown, CF:L("LAYOUT_VERTICAL"))
         end
-        UIDropDownMenu_AddButton(info, level)
+        UIDropDownMenu_AddButton(info)
         
-        info.text = CF.L["LAYOUT_HORIZONTAL"]
+        info.text = CF:L("LAYOUT_HORIZONTAL")
         info.value = "horizontal"
         info.func = function()
-            local db = CopperFeverDB
-            if db and db.settings and db.settings.display then
-                db.settings.display.layout = "horizontal"
-                CF.MainFrame:Update()
-            end
-            UIDropDownMenu_SetSelectedValue(layoutDropdown, "horizontal")
+            CP.tempSettings.layout = "horizontal"
+            UIDropDownMenu_SetText(layoutDropdown, CF:L("LAYOUT_HORIZONTAL"))
         end
-        UIDropDownMenu_AddButton(info, level)
+        UIDropDownMenu_AddButton(info)
     end)
-    frame.layoutDropdown = layoutDropdown
-    yOffset = yOffset - 40
     
-    -- 显示图标复选框
-    local showIcons = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    showIcons:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    showIcons.Text:SetText(CF.L["DISPLAY_SHOW_ICONS"])
-    showIcons:SetScript("OnClick", function(self)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.display then
-            db.settings.display.showIcons = self:GetChecked()
-            CF.MainFrame:Update()
-        end
-    end)
-    frame.showIcons = showIcons
-    yOffset = yOffset - 30
+    content.layoutDropdown = layoutDropdown
+    yOffset = yOffset + 60
     
-    -- 显示提示信息复选框
-    local showTooltips = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    showTooltips:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    showTooltips.Text:SetText(CF.L["DISPLAY_SHOW_TOOLTIPS"])
-    showTooltips:SetScript("OnClick", function(self)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.display then
-            db.settings.display.showTooltips = self:GetChecked()
-        end
-    end)
-    frame.showTooltips = showTooltips
-    yOffset = yOffset - 30
+    -- 图标大小
+    local iconSizeLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    iconSizeLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    iconSizeLabel:SetText(CF:L("DISPLAY_ICON_SIZE"))
     
-    -- 自动隐藏复选框
-    local autoHide = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    autoHide:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    autoHide.Text:SetText(CF.L["DISPLAY_AUTO_HIDE"])
-    autoHide:SetScript("OnClick", function(self)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.display then
-            db.settings.display.autoHide = self:GetChecked()
-            CF.MainFrame:Update()
-        end
-    end)
-    frame.autoHide = autoHide
-    yOffset = yOffset - 40
-    
-    -- 图标大小滑块
-    local iconSizeSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
-    iconSizeSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    local iconSizeSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    iconSizeSlider:SetPoint("TOPLEFT", iconSizeLabel, "BOTTOMLEFT", 0, -10)
+    iconSizeSlider:SetSize(200, 20)
     iconSizeSlider:SetMinMaxValues(16, 48)
     iconSizeSlider:SetValueStep(2)
     iconSizeSlider:SetObeyStepOnDrag(true)
-    iconSizeSlider.Text:SetText(CF.L["DISPLAY_ICON_SIZE"])
     iconSizeSlider.Low:SetText("16")
     iconSizeSlider.High:SetText("48")
+    iconSizeSlider.Text:SetText(CF:L("DISPLAY_ICON_SIZE"))
+    
     iconSizeSlider:SetScript("OnValueChanged", function(self, value)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.display then
-            db.settings.display.iconSize = value
-            CF.MainFrame:Update()
-        end
-        self.Value:SetText(tostring(value))
+        self.Text:SetText(string.format("%s: %d", CF:L("DISPLAY_ICON_SIZE"), value))
+        CP.tempSettings.iconSize = value
     end)
-    iconSizeSlider.Value = iconSizeSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    iconSizeSlider.Value:SetPoint("TOP", iconSizeSlider, "BOTTOM", 0, 0)
-    frame.iconSizeSlider = iconSizeSlider
-    yOffset = yOffset - 50
     
-    -- 间距滑块
-    local spacingSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
-    spacingSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
-    spacingSlider:SetMinMaxValues(0, 20)
-    spacingSlider:SetValueStep(1)
-    spacingSlider:SetObeyStepOnDrag(true)
-    spacingSlider.Text:SetText(CF.L["DISPLAY_SPACING"])
-    spacingSlider.Low:SetText("0")
-    spacingSlider.High:SetText("20")
-    spacingSlider:SetScript("OnValueChanged", function(self, value)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.display then
-            db.settings.display.spacing = value
-            CF.MainFrame:Update()
-        end
-        self.Value:SetText(tostring(value))
+    content.iconSizeSlider = iconSizeSlider
+    yOffset = yOffset + 60
+    
+    -- 字体大小
+    local fontSizeLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fontSizeLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    fontSizeLabel:SetText(CF:L("DISPLAY_FONT_SIZE"))
+    
+    local fontSizeSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    fontSizeSlider:SetPoint("TOPLEFT", fontSizeLabel, "BOTTOMLEFT", 0, -10)
+    fontSizeSlider:SetSize(200, 20)
+    fontSizeSlider:SetMinMaxValues(8, 20)
+    fontSizeSlider:SetValueStep(1)
+    fontSizeSlider:SetObeyStepOnDrag(true)
+    fontSizeSlider.Low:SetText("8")
+    fontSizeSlider.High:SetText("20")
+    fontSizeSlider.Text:SetText(CF:L("DISPLAY_FONT_SIZE"))
+    
+    fontSizeSlider:SetScript("OnValueChanged", function(self, value)
+        self.Text:SetText(string.format("%s: %d", CF:L("DISPLAY_FONT_SIZE"), value))
+        CP.tempSettings.fontSize = value
     end)
-    spacingSlider.Value = spacingSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    spacingSlider.Value:SetPoint("TOP", spacingSlider, "BOTTOM", 0, 0)
-    frame.spacingSlider = spacingSlider
     
-    return frame
+    content.fontSizeSlider = fontSizeSlider
+    yOffset = yOffset + 60
+    
+    -- 显示图标复选框
+    local showIconsCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    showIconsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    showIconsCheckbox.text = showIconsCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    showIconsCheckbox.text:SetPoint("LEFT", showIconsCheckbox, "RIGHT", 5, 0)
+    showIconsCheckbox.text:SetText(CF:L("DISPLAY_SHOW_ICONS"))
+    
+    showIconsCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.showIcons = self:GetChecked()
+    end)
+    
+    content.showIconsCheckbox = showIconsCheckbox
+    yOffset = yOffset + 30
+    
+    -- 显示工具提示复选框
+    local showTooltipsCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    showTooltipsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    showTooltipsCheckbox.text = showTooltipsCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    showTooltipsCheckbox.text:SetPoint("LEFT", showTooltipsCheckbox, "RIGHT", 5, 0)
+    showTooltipsCheckbox.text:SetText(CF:L("DISPLAY_SHOW_TOOLTIPS"))
+    
+    showTooltipsCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.showTooltips = self:GetChecked()
+    end)
+    
+    content.showTooltipsCheckbox = showTooltipsCheckbox
+    yOffset = yOffset + 30
+    
+    -- 战斗中隐藏复选框
+    local hideInCombatCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    hideInCombatCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    hideInCombatCheckbox.text = hideInCombatCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hideInCombatCheckbox.text:SetPoint("LEFT", hideInCombatCheckbox, "RIGHT", 5, 0)
+    hideInCombatCheckbox.text:SetText(CF:L("DISPLAY_HIDE_IN_COMBAT"))
+    
+    hideInCombatCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.hideInCombat = self:GetChecked()
+    end)
+    
+    content.hideInCombatCheckbox = hideInCombatCheckbox
+    yOffset = yOffset + 30
+    
+    -- 显示区域消息复选框
+    local showZoneMessagesCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    showZoneMessagesCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    showZoneMessagesCheckbox.text = showZoneMessagesCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    showZoneMessagesCheckbox.text:SetPoint("LEFT", showZoneMessagesCheckbox, "RIGHT", 5, 0)
+    showZoneMessagesCheckbox.text:SetText(CF:L("DISPLAY_SHOW_ZONE_MESSAGES"))
+    
+    showZoneMessagesCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.showZoneMessages = self:GetChecked()
+    end)
+    
+    content.showZoneMessagesCheckbox = showZoneMessagesCheckbox
+    yOffset = yOffset + 30
+    
+    return content
 end
 
 -- ====================================================================
--- 创建数据设置
+-- 创建数据设置标签页
 -- ====================================================================
-function CP:CreateDataSettings(parent)
-    local frame = CreateFrame("Frame", nil, parent)
-    frame:SetAllPoints(parent)
-    frame:Hide()
+function CP:CreateDataTab()
+    local content = CreateFrame("Frame", nil, self.frame)
+    content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20, -80)
+    content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -20, 50)
+    content:Hide()
     
-    local yOffset = -10
+    local yOffset = 0
     
-    -- 标题
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    title:SetText(CF.L["CONFIG_DATA"])
-    yOffset = yOffset - 30
+    -- 数据源组
+    local groupHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    groupHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+    groupHeader:SetText(CF:L("CONFIG_GROUP_DATA_SOURCES"))
+    groupHeader:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 25
     
     -- 启用自动更新复选框
-    local autoUpdate = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    autoUpdate:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    autoUpdate.Text:SetText(CF.L["DATA_AUTO_UPDATE"])
-    autoUpdate:SetScript("OnClick", function(self)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.data then
-            db.settings.data.enableAutoUpdate = self:GetChecked()
-            if self:GetChecked() then
-                CF.DataManager:StartAutoUpdate()
-            else
-                CF.DataManager:StopAutoUpdate()
-            end
-        end
-    end)
-    frame.autoUpdate = autoUpdate
-    yOffset = yOffset - 40
+    local autoUpdateCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    autoUpdateCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    autoUpdateCheckbox.text = autoUpdateCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    autoUpdateCheckbox.text:SetPoint("LEFT", autoUpdateCheckbox, "RIGHT", 5, 0)
+    autoUpdateCheckbox.text:SetText(CF:L("DATA_AUTO_UPDATE"))
     
-    -- 更新间隔滑块
-    local updateIntervalSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
-    updateIntervalSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    autoUpdateCheckbox:SetScript("OnClick", function(self)
+        CP.tempSettings.enableAutoUpdate = self:GetChecked()
+    end)
+    
+    content.autoUpdateCheckbox = autoUpdateCheckbox
+    yOffset = yOffset + 30
+    
+    -- 更新间隔
+    local updateIntervalLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    updateIntervalLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    updateIntervalLabel:SetText(CF:L("DATA_UPDATE_INTERVAL"))
+    
+    local updateIntervalSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    updateIntervalSlider:SetPoint("TOPLEFT", updateIntervalLabel, "BOTTOMLEFT", 0, -10)
+    updateIntervalSlider:SetSize(200, 20)
     updateIntervalSlider:SetMinMaxValues(1, 30)
     updateIntervalSlider:SetValueStep(1)
     updateIntervalSlider:SetObeyStepOnDrag(true)
-    updateIntervalSlider.Text:SetText(CF.L["DATA_UPDATE_INTERVAL"])
     updateIntervalSlider.Low:SetText("1")
     updateIntervalSlider.High:SetText("30")
-    updateIntervalSlider:SetScript("OnValueChanged", function(self, value)
-        local db = CopperFeverDB
-        if db and db.settings and db.settings.data then
-            db.settings.data.updateInterval = value
-            -- 重启自动更新以应用新间隔
-            if db.settings.data.enableAutoUpdate then
-                CF.DataManager:StopAutoUpdate()
-                CF.DataManager:StartAutoUpdate()
-            end
-        end
-        self.Value:SetText(tostring(value) .. "s")
-    end)
-    updateIntervalSlider.Value = updateIntervalSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    updateIntervalSlider.Value:SetPoint("TOP", updateIntervalSlider, "BOTTOM", 0, 0)
-    frame.updateIntervalSlider = updateIntervalSlider
-    yOffset = yOffset - 60
+    updateIntervalSlider.Text:SetText(CF:L("DATA_UPDATE_INTERVAL"))
     
-    -- ALL THE THINGS 集成
-    local attTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    attTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    attTitle:SetText(CF:Colorize(CF.L["ATT_INTEGRATION"], CF.COLORS.YELLOW))
-    yOffset = yOffset - 25
+    updateIntervalSlider:SetScript("OnValueChanged", function(self, value)
+        self.Text:SetText(string.format("%s: %d", CF:L("DATA_UPDATE_INTERVAL"), value))
+        CP.tempSettings.updateInterval = value
+    end)
+    
+    content.updateIntervalSlider = updateIntervalSlider
+    yOffset = yOffset + 60
+    
+    -- 刷新数据按钮
+    local refreshButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    refreshButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    refreshButton:SetSize(150, 25)
+    refreshButton:SetText(CF:L("BUTTON_REFRESH"))
+    
+    refreshButton:SetScript("OnClick", function()
+        if CF.DataManager and CF.DataManager.RefreshData then
+            CF.DataManager:RefreshData()
+        end
+    end)
+    
+    content.refreshButton = refreshButton
+    yOffset = yOffset + 35
+    
+    -- ATT 集成组
+    yOffset = yOffset + 10
+    local attHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    attHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+    attHeader:SetText(CF:L("ATT_DATA_SOURCE_HEADER"))
+    attHeader:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 25
+    
+    -- ATT 状态
+    local attStatus = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    attStatus:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    
+    if CF.ATTIntegration and CF.ATTIntegration:IsAvailable() then
+        attStatus:SetText(CF:L("INFO_ATT_INTEGRATION"))
+        attStatus:SetTextColor(0, 1, 0)
+    else
+        attStatus:SetText(CF:L("ERROR_ATT_NOT_FOUND"))
+        attStatus:SetTextColor(1, 0, 0)
+    end
+    
+    content.attStatus = attStatus
+    yOffset = yOffset + 25
     
     -- 从 ATT 导入按钮
-    local importATT = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    importATT:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    importATT:SetSize(200, 25)
-    importATT:SetText(CF.L["DATA_IMPORT_FROM_ATT"])
-    importATT:SetScript("OnClick", function()
-        CF.ATTIntegration:ImportAllData()
-    end)
-    frame.importATT = importATT
-    yOffset = yOffset - 35
+    local importATTButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    importATTButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    importATTButton:SetSize(200, 25)
+    importATTButton:SetText(CF:L("DATA_IMPORT_FROM_ATT"))
     
-    -- 手动刷新按钮
-    local refreshData = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    refreshData:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    refreshData:SetSize(150, 25)
-    refreshData:SetText(CF.L["BUTTON_REFRESH"])
-    refreshData:SetScript("OnClick", function()
-        CF.DataManager:RefreshData()
-    end)
-    frame.refreshData = refreshData
-    yOffset = yOffset - 35
+    if not (CF.ATTIntegration and CF.ATTIntegration:IsAvailable()) then
+        importATTButton:Disable()
+    end
     
-    -- 重置为默认按钮
-    local resetData = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    resetData:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    resetData:SetSize(150, 25)
-    resetData:SetText(CF.L["DATA_RESET"])
-    resetData:SetScript("OnClick", function()
+    importATTButton:SetScript("OnClick", function()
+        if CF.ATTIntegration and CF.ATTIntegration.ImportAllData then
+            CF.ATTIntegration:ImportAllData()
+        end
+    end)
+    
+    content.importATTButton = importATTButton
+    yOffset = yOffset + 35
+    
+    return content
+end
+
+-- ====================================================================
+-- 创建高级设置标签页
+-- ====================================================================
+function CP:CreateAdvancedTab()
+    local content = CreateFrame("Frame", nil, self.frame)
+    content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20, -80)
+    content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -20, 50)
+    content:Hide()
+    
+    local yOffset = 0
+    
+    -- 高级选项组
+    local groupHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    groupHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+    groupHeader:SetText(CF:L("CONFIG_ADVANCED"))
+    groupHeader:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 25
+    
+    -- 调试模式
+    local debugCheckbox = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    debugCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    debugCheckbox.text = debugCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    debugCheckbox.text:SetPoint("LEFT", debugCheckbox, "RIGHT", 5, 0)
+    debugCheckbox.text:SetText(CF:L("CMD_HELP_DEBUG"))
+    
+    debugCheckbox:SetChecked(CF.CURRENT_DEBUG_LEVEL > CF.DEBUG_LEVELS.NONE)
+    
+    debugCheckbox:SetScript("OnClick", function(self)
+        if self:GetChecked() then
+            CF.CURRENT_DEBUG_LEVEL = CF.DEBUG_LEVELS.INFO
+            CF:ShowLocalizedMessage("CMD_DEBUG_ENABLED")
+        else
+            CF.CURRENT_DEBUG_LEVEL = CF.DEBUG_LEVELS.NONE
+            CF:ShowLocalizedMessage("CMD_DEBUG_DISABLED")
+        end
+    end)
+    
+    content.debugCheckbox = debugCheckbox
+    yOffset = yOffset + 30
+    
+    -- 清除缓存按钮
+    local clearCacheButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    clearCacheButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    clearCacheButton:SetSize(150, 25)
+    clearCacheButton:SetText(CF:L("DEBUG_CLEAR_CACHE"))
+    
+    clearCacheButton:SetScript("OnClick", function()
+        if CF.ClearCache then
+            CF:ClearCache()
+            CF:ShowLocalizedSuccess("MSG_DATA_IMPORTED")
+        end
+        if CF.DataManager and CF.DataManager.ClearAllCaches then
+            CF.DataManager:ClearAllCaches()
+        end
+    end)
+    
+    content.clearCacheButton = clearCacheButton
+    yOffset = yOffset + 35
+    
+    -- 显示统计信息按钮
+    local showStatsButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    showStatsButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    showStatsButton:SetSize(150, 25)
+    showStatsButton:SetText(CF:L("DEBUG_SHOW_CACHE"))
+    
+    showStatsButton:SetScript("OnClick", function()
+        if CF.Security and CF.Security.PrintStats then
+            CF.Security:PrintStats()
+        end
+        if CF.StaticData and CF.StaticData.PrintStatistics then
+            CF.StaticData:PrintStatistics()
+        end
+    end)
+    
+    content.showStatsButton = showStatsButton
+    yOffset = yOffset + 35
+    
+    -- 重置所有设置按钮
+    yOffset = yOffset + 20
+    local resetAllButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    resetAllButton:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    resetAllButton:SetSize(200, 25)
+    resetAllButton:SetText(CF:L("DATA_RESET"))
+    
+    resetAllButton:SetScript("OnClick", function()
         StaticPopup_Show("COPPERFEVER_RESET_CONFIRM")
     end)
-    frame.resetData = resetData
     
-    return frame
+    content.resetAllButton = resetAllButton
+    yOffset = yOffset + 35
+    
+    -- 版本信息
+    yOffset = yOffset + 20
+    local versionInfo = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    versionInfo:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    versionInfo:SetText(string.format("%s: %s (%s: %d)", 
+        CF:L("ADDON_VERSION"), CF.VERSION,
+        CF:L("CMD_BUILD"), CF.BUILD))
+    versionInfo:SetTextColor(0.7, 0.7, 0.7)
+    yOffset = yOffset + 25
+    
+    -- 作者信息
+    local authorInfo = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    authorInfo:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
+    authorInfo:SetText(CF:L("ABOUT_AUTHOR_INFO"))
+    authorInfo:SetTextColor(0.7, 0.7, 0.7)
+    yOffset = yOffset + 25
+    
+    return content
 end
 
 -- ====================================================================
--- 创建地图设置
+-- 创建底部按钮
 -- ====================================================================
-function CP:CreateMapSettings(parent)
-    local frame = CreateFrame("Frame", nil, parent)
-    frame:SetAllPoints(parent)
-    frame:Hide()
+function CP:CreateButtons()
+    if not self.frame then return end
     
-    local yOffset = -10
-    
-    -- 标题
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    title:SetText(CF.L["CONFIG_MAP_LIST"])
-    yOffset = yOffset - 30
-    
-    -- 说明文本
-    local desc = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    desc:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    desc:SetText(CF:Colorize(CF.L["CONFIG_SELECT_MAP"], CF.COLORS.GRAY))
-    desc:SetWordWrap(true)
-    desc:SetWidth(parent:GetWidth() - 20)
-    yOffset = yOffset - 40
-    
-    -- 创建地图列表滚动框架
-    local mapListScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    mapListScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, yOffset)
-    mapListScroll:SetSize(parent:GetWidth() - 40, 400)
-    
-    local mapListContent = CreateFrame("Frame", nil, mapListScroll)
-    mapListScroll:SetScrollChild(mapListContent)
-    mapListContent:SetSize(mapListScroll:GetWidth() - 20, 800)
-    
-    frame.mapListScroll = mapListScroll
-    frame.mapListContent = mapListContent
-    
-    -- 填充地图列表（这里可以添加按扩展版本分组的地图列表）
-    -- 由于篇幅原因，这里仅提供框架
-    local mapListText = mapListContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mapListText:SetPoint("TOPLEFT", mapListContent, "TOPLEFT", 5, -5)
-    mapListText:SetText(CF:Colorize("地图配置功能待完善...", CF.COLORS.YELLOW))
-    
-    return frame
-end
-
--- ====================================================================
--- 创建按钮区域
--- ====================================================================
-function CP:CreateButtonArea(parent)
     -- 保存按钮
-    local saveBtn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    saveBtn:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 16, 16)
-    saveBtn:SetSize(100, 25)
-    saveBtn:SetText(CF.L["BUTTON_SAVE"])
-    saveBtn:SetScript("OnClick", function()
+    local saveButton = CreateFrame("Button", nil, self.frame, "UIPanelButtonTemplate")
+    saveButton:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -20, 15)
+    saveButton:SetSize(100, 25)
+    saveButton:SetText(CF:L("BUTTON_SAVE"))
+    
+    saveButton:SetScript("OnClick", function()
         CP:SaveSettings()
     end)
-    parent.saveBtn = saveBtn
+    
+    self.elements.saveButton = saveButton
     
     -- 取消按钮
-    local cancelBtn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    cancelBtn:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
-    cancelBtn:SetSize(100, 25)
-    cancelBtn:SetText(CF.L["BUTTON_CANCEL"])
-    cancelBtn:SetScript("OnClick", function()
-        CP:CancelSettings()
-    end)
-    parent.cancelBtn = cancelBtn
+    local cancelButton = CreateFrame("Button", nil, self.frame, "UIPanelButtonTemplate")
+    cancelButton:SetPoint("RIGHT", saveButton, "LEFT", -10, 0)
+    cancelButton:SetSize(100, 25)
+    cancelButton:SetText(CF:L("BUTTON_CANCEL"))
     
-    -- 默认按钮
-    local defaultBtn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    defaultBtn:SetPoint("LEFT", cancelBtn, "RIGHT", 10, 0)
-    defaultBtn:SetSize(100, 25)
-    defaultBtn:SetText(CF.L["BUTTON_RESET"])
-    defaultBtn:SetScript("OnClick", function()
-        StaticPopup_Show("COPPERFEVER_RESET_CONFIRM")
+    cancelButton:SetScript("OnClick", function()
+        CP:Close()
     end)
-    parent.defaultBtn = defaultBtn
+    
+    self.elements.cancelButton = cancelButton
 end
 
 -- ====================================================================
--- 选择类别
+-- 显示标签页
 -- ====================================================================
-function CP:SelectCategory(category)
-    -- 更新按钮状态
-    for _, button in ipairs(self.categoryList.buttons) do
-        if button.category == category then
-            button.bg:Show()
-            button.text:SetTextColor(1, 1, 1)
-        else
-            button.bg:Hide()
-            button.text:SetTextColor(0.7, 0.7, 0.7)
-        end
+function CP:ShowTab(tabName)
+    if not self.elements.tabs or not self.elements.contents then
+        return
     end
     
-    -- 显示对应的内容框架
-    for cat, frame in pairs(self.categoryFrames) do
-        if cat == category then
-            frame:Show()
-        else
-            frame:Hide()
-        end
+    -- 隐藏所有标签页内容
+    for name, content in pairs(self.elements.contents) do
+        content:Hide()
     end
     
-    self.currentCategory = category
+    -- 重置所有标签按钮
+    for name, tab in pairs(self.elements.tabs) do
+        tab.text:SetTextColor(1, 1, 1)
+    end
+    
+    -- 显示选中的标签页
+    if self.elements.contents[tabName] then
+        self.elements.contents[tabName]:Show()
+    end
+    
+    -- 高亮选中的标签按钮
+    if self.elements.tabs[tabName] then
+        self.elements.tabs[tabName].text:SetTextColor(1, 0.82, 0)
+    end
+    
+    CF:LogInfo("切换到标签页: %s", tabName)
 end
 
 -- ====================================================================
@@ -649,118 +716,248 @@ end
 -- ====================================================================
 function CP:LoadSettings()
     local db = CopperFeverDB
-    if not db or not db.settings then return end
-    
-    -- 加载常规设置
-    local generalFrame = self.categoryFrames.general
-    if generalFrame then
-        generalFrame.showWindow:SetChecked(db.settings.mainFrame.shown or false)
-        generalFrame.lockWindow:SetChecked(db.settings.mainFrame.locked or false)
-        generalFrame.scaleSlider:SetValue(db.settings.mainFrame.scale or CF.DEFAULTS.mainFrame.scale)
-        generalFrame.alphaSlider:SetValue(db.settings.mainFrame.alpha or CF.DEFAULTS.mainFrame.alpha)
+    if not db or not db.settings then
+        CF:LogError("无法加载设置")
+        return
     end
     
-    -- 加载显示设置
-    local displayFrame = self.categoryFrames.display
-    if displayFrame then
-        UIDropDownMenu_SetSelectedValue(displayFrame.layoutDropdown, 
-            db.settings.display.layout or CF.DEFAULTS.display.layout)
-        displayFrame.showIcons:SetChecked(db.settings.display.showIcons ~= false)
-        displayFrame.showTooltips:SetChecked(db.settings.display.showTooltips ~= false)
-        displayFrame.autoHide:SetChecked(db.settings.display.autoHide or false)
-        displayFrame.iconSizeSlider:SetValue(db.settings.display.iconSize or CF.DEFAULTS.display.iconSize)
-        displayFrame.spacingSlider:SetValue(db.settings.display.spacing or CF.DEFAULTS.display.spacing)
+    -- 复制当前设置到临时设置
+    self.tempSettings = CF:DeepCopy(db.settings)
+    
+    -- 加载到通用标签页
+    if self.elements.contents.general then
+        local content = self.elements.contents.general
+        local mainFrame = db.settings.mainFrame
+        
+        if content.scaleSlider then
+            content.scaleSlider:SetValue(mainFrame.scale or 1.0)
+        end
+        
+        if content.alphaSlider then
+            content.alphaSlider:SetValue(mainFrame.alpha or 0.9)
+        end
+        
+        if content.lockCheckbox then
+            content.lockCheckbox:SetChecked(mainFrame.locked or false)
+        end
     end
     
-    -- 加载数据设置
-    local dataFrame = self.categoryFrames.data
-    if dataFrame then
-        dataFrame.autoUpdate:SetChecked(db.settings.data.enableAutoUpdate ~= false)
-        dataFrame.updateIntervalSlider:SetValue(db.settings.data.updateInterval or CF.DEFAULTS.data.updateInterval)
+    -- 加载到显示标签页
+    if self.elements.contents.display then
+        local content = self.elements.contents.display
+        local display = db.settings.display
+        
+        if content.layoutDropdown then
+            UIDropDownMenu_SetText(content.layoutDropdown, 
+                CF:GetLayoutLocalizedName(display.layout or "vertical"))
+        end
+        
+        if content.iconSizeSlider then
+            content.iconSizeSlider:SetValue(display.iconSize or 24)
+        end
+        
+        if content.fontSizeSlider then
+            content.fontSizeSlider:SetValue(display.fontSize or 12)
+        end
+        
+        if content.showIconsCheckbox then
+            content.showIconsCheckbox:SetChecked(display.showIcons ~= false)
+        end
+        
+        if content.showTooltipsCheckbox then
+            content.showTooltipsCheckbox:SetChecked(display.showTooltips ~= false)
+        end
+        
+        if content.hideInCombatCheckbox then
+            content.hideInCombatCheckbox:SetChecked(display.hideInCombat or false)
+        end
+        
+        if content.showZoneMessagesCheckbox then
+            content.showZoneMessagesCheckbox:SetChecked(display.showZoneMessages or false)
+        end
     end
+    
+    -- 加载到数据标签页
+    if self.elements.contents.data then
+        local content = self.elements.contents.data
+        local data = db.settings.data
+        
+        if content.autoUpdateCheckbox then
+            content.autoUpdateCheckbox:SetChecked(data.enableAutoUpdate ~= false)
+        end
+        
+        if content.updateIntervalSlider then
+            content.updateIntervalSlider:SetValue(data.updateInterval or 5)
+        end
+    end
+    
+    CF:LogInfo("设置已加载到配置界面")
 end
 
 -- ====================================================================
 -- 保存设置
 -- ====================================================================
 function CP:SaveSettings()
-    CF:ShowLocalizedSuccess("MSG_SETTINGS_SAVED")
-    
-    -- 应用设置到主窗口
-    CF.MainFrame:ApplySettings()
-end
-
--- ====================================================================
--- 取消设置
--- ====================================================================
-function CP:CancelSettings()
-    -- 重新加载设置
-    self:LoadSettings()
-end
-
--- ====================================================================
--- 重置设置
--- ====================================================================
-function CP:ResetSettings()
-    -- 重置为默认值
-    CopperFeverDB.settings = CF:DeepCopy(CF.DEFAULTS)
-    
-    -- 重新加载界面
-    self:LoadSettings()
-    
-    -- 应用到主窗口
-    CF.MainFrame:ApplySettings()
-    
-    CF:ShowLocalizedSuccess("MSG_SETTINGS_RESET")
-end
-
--- ====================================================================
--- 事件处理
--- ====================================================================
-function CP:OnShow()
-    -- 加载当前设置
-    self:LoadSettings()
-    
-    -- 默认显示第一个类别
-    if not self.currentCategory then
-        self:SelectCategory(self.categories[1])
+    local db = CopperFeverDB
+    if not db or not db.settings then
+        CF:LogError("无法保存设置")
+        return
     end
-end
-
-function CP:OnHide()
-    -- 清理
+    
+    -- 保存主窗口设置
+    if self.tempSettings.scale then
+        db.settings.mainFrame.scale = self.tempSettings.scale
+        if CF.MainFrame and CF.MainFrame.frame then
+            CF.MainFrame.frame:SetScale(self.tempSettings.scale)
+        end
+    end
+    
+    if self.tempSettings.alpha then
+        db.settings.mainFrame.alpha = self.tempSettings.alpha
+        if CF.MainFrame and CF.MainFrame.frame then
+            CF.MainFrame.frame:SetAlpha(self.tempSettings.alpha)
+        end
+    end
+    
+    if self.tempSettings.locked ~= nil then
+        db.settings.mainFrame.locked = self.tempSettings.locked
+        if CF.MainFrame then
+            CF.MainFrame:SetLocked(self.tempSettings.locked)
+        end
+    end
+    
+    -- 保存显示设置
+    if self.tempSettings.layout then
+        db.settings.display.layout = self.tempSettings.layout
+    end
+    
+    if self.tempSettings.iconSize then
+        db.settings.display.iconSize = self.tempSettings.iconSize
+    end
+    
+    if self.tempSettings.fontSize then
+        db.settings.display.fontSize = self.tempSettings.fontSize
+    end
+    
+    if self.tempSettings.showIcons ~= nil then
+        db.settings.display.showIcons = self.tempSettings.showIcons
+    end
+    
+    if self.tempSettings.showTooltips ~= nil then
+        db.settings.display.showTooltips = self.tempSettings.showTooltips
+    end
+    
+    if self.tempSettings.hideInCombat ~= nil then
+        db.settings.display.hideInCombat = self.tempSettings.hideInCombat
+    end
+    
+    if self.tempSettings.showZoneMessages ~= nil then
+        db.settings.display.showZoneMessages = self.tempSettings.showZoneMessages
+    end
+    
+    -- 保存数据设置
+    if self.tempSettings.enableAutoUpdate ~= nil then
+        db.settings.data.enableAutoUpdate = self.tempSettings.enableAutoUpdate
+        
+        -- 重启自动更新
+        if CF.DataManager then
+            if self.tempSettings.enableAutoUpdate then
+                CF.DataManager:StartAutoUpdate()
+            else
+                CF.DataManager:StopAutoUpdate()
+            end
+        end
+    end
+    
+    if self.tempSettings.updateInterval then
+        db.settings.data.updateInterval = self.tempSettings.updateInterval
+        
+        -- 重启自动更新以应用新间隔
+        if CF.DataManager and db.settings.data.enableAutoUpdate then
+            CF.DataManager:StopAutoUpdate()
+            CF.DataManager:StartAutoUpdate()
+        end
+    end
+    
+    -- 刷新主窗口
+    if CF.MainFrame and CF.MainFrame.Update then
+        CF.MainFrame:Update()
+    end
+    
+    CF:ShowLocalizedSuccess("MSG_SETTINGS_SAVED")
+    CF:LogInfo("设置已保存")
+    
+    self:Close()
 end
 
 -- ====================================================================
 -- 打开配置面板
 -- ====================================================================
 function CP:Open()
-    if Settings and self.settingsCategory then
-        -- 11.0+ 新设置界面
-        Settings.OpenToCategory(self.settingsCategory:GetID())
-    elseif InterfaceOptionsFrame_OpenToCategory then
-        -- 旧版设置界面
-        InterfaceOptionsFrame_OpenToCategory(self.panel)
-        InterfaceOptionsFrame_OpenToCategory(self.panel)  -- 调用两次以确保正确显示
+    if not self.frame then
+        self:CreatePanel()
+    end
+    
+    self:LoadSettings()
+    self.frame:Show()
+    
+    CF:LogInfo("配置面板已打开")
+end
+
+-- ====================================================================
+-- 关闭配置面板
+-- ====================================================================
+function CP:Close()
+    if self.frame then
+        self.frame:Hide()
+    end
+    
+    -- 清空临时设置
+    self.tempSettings = {}
+    
+    CF:LogInfo("配置面板已关闭")
+end
+
+-- ====================================================================
+-- 切换配置面板
+-- ====================================================================
+function CP:Toggle()
+    if self.frame and self.frame:IsShown() then
+        self:Close()
+    else
+        self:Open()
     end
 end
 
 -- ====================================================================
--- 初始化
+-- 初始化配置面板
 -- ====================================================================
 function CP:Initialize()
+    if self.initialized then
+        CF:LogWarning("ConfigPanel 已经初始化过了")
+        return
+    end
+    
     CF:LogInfo("初始化配置面板...")
     
-    -- 创建面板
-    self:Create()
-    
-    -- 创建确认对话框
+    -- 注册重置确认对话框
     StaticPopupDialogs["COPPERFEVER_RESET_CONFIRM"] = {
-        text = CF.L["WARNING_RESET_CONFIRM"],
-        button1 = CF.L["BUTTON_OK"],
-        button2 = CF.L["BUTTON_CANCEL"],
+        text = CF:L("WARNING_RESET_CONFIRM"),
+        button1 = CF:L("BUTTON_OK"),
+        button2 = CF:L("BUTTON_CANCEL"),
         OnAccept = function()
-            CP:ResetSettings()
+            local db = CopperFeverDB
+            if db then
+                db.settings = CF:DeepCopy(CF.DEFAULTS)
+                CF:ShowLocalizedSuccess("MSG_SETTINGS_RESET")
+                
+                if CF.MainFrame then
+                    CF.MainFrame:ResetPosition()
+                    CF.MainFrame:Update()
+                end
+                
+                CP:LoadSettings()
+            end
         end,
         timeout = 0,
         whileDead = true,
@@ -768,5 +965,21 @@ function CP:Initialize()
         preferredIndex = 3,
     }
     
+    self.initialized = true
     CF:LogInfo("配置面板初始化完成")
 end
+
+-- ====================================================================
+-- 清理函数
+-- ====================================================================
+function CP:Cleanup()
+    CF:LogInfo("清理配置面板...")
+    
+    if self.frame and self.frame:IsShown() then
+        self:Close()
+    end
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

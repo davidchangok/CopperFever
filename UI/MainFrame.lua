@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Copper Fever - UI\MainFrame.lua
--- 主显示窗口
+-- 主窗口界面
 -- Author: David W Zhang
 -- ====================================================================
 
@@ -12,65 +12,64 @@ local CF = CopperFever
 CF.MainFrame = CF.MainFrame or {}
 local MF = CF.MainFrame
 
--- 窗口引用
+-- 初始化标志
+MF.initialized = false
 MF.frame = nil
-MF.titleBar = nil
-MF.contentFrame = nil
-MF.currencyFrame = nil
-MF.reputationFrame = nil
-
--- 显示项目列表
-MF.currencyItems = {}
-MF.reputationItems = {}
-
--- 更新状态
-MF.isUpdating = false
-MF.currentMapID = nil
+MF.elements = {}
+MF.contentRows = {}
 
 -- ====================================================================
 -- 创建主窗口
 -- ====================================================================
-function MF:Create()
+function MF:CreateFrame()
     if self.frame then
+        CF:LogWarning("主窗口已经创建")
         return self.frame
     end
     
-    CF:LogInfo("创建主窗口...")
+    local db = CopperFeverDB
+    if not db or not db.settings then
+        CF:LogError("数据库未初始化，无法创建主窗口")
+        return nil
+    end
+    
+    local settings = db.settings.mainFrame
     
     -- 创建主框架
     local frame = CreateFrame("Frame", "CopperFeverMainFrame", UIParent, "BackdropTemplate")
-    self.frame = frame
-    
-    -- 设置框架属性
-    frame:SetSize(CF.DEFAULTS.mainFrame.width, CF.DEFAULTS.mainFrame.height)
-    frame:SetPoint(CF.DEFAULTS.mainFrame.point, UIParent, CF.DEFAULTS.mainFrame.point, 
-                   CF.DEFAULTS.mainFrame.x, CF.DEFAULTS.mainFrame.y)
+    frame:SetSize(settings.width or 200, settings.height or 300)
+    frame:SetPoint(settings.point or "CENTER", UIParent, settings.point or "CENTER", 
+                   settings.x or 0, settings.y or 0)
     frame:SetFrameStrata(CF.FRAME_STRATA.MAIN)
+    frame:SetFrameLevel(1)
     frame:SetClampedToScreen(true)
     frame:EnableMouse(true)
-    frame:SetMovable(true)
+    frame:SetMovable(not settings.locked)
     frame:RegisterForDrag("LeftButton")
     
     -- 设置背景
-    local bgColor = CF.DEFAULTS.mainFrame.backgroundColor
-    local borderColor = CF.DEFAULTS.mainFrame.borderColor
+    local bgColor = settings.backgroundColor or CF.DEFAULTS.mainFrame.backgroundColor
+    local borderColor = settings.borderColor or CF.DEFAULTS.mainFrame.borderColor
+    
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
         tile = true,
         tileSize = 32,
         edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 }
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
-    frame:SetBackdropColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
-    frame:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, borderColor.a)
     
-    -- 设置透明度
-    frame:SetAlpha(CF.DEFAULTS.mainFrame.alpha)
+    frame:SetBackdropColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a or 0.8)
+    frame:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, borderColor.a or 1)
     
-    -- 拖动脚本
+    -- 设置透明度和缩放
+    frame:SetAlpha(settings.alpha or 0.9)
+    frame:SetScale(settings.scale or 1.0)
+    
+    -- 拖动事件
     frame:SetScript("OnDragStart", function(self)
-        if not MF:IsLocked() then
+        if not db.settings.mainFrame.locked then
             self:StartMoving()
         end
     end)
@@ -80,555 +79,703 @@ function MF:Create()
         MF:SavePosition()
     end)
     
-    -- 创建标题栏
-    self:CreateTitleBar(frame)
+    -- 鼠标进入/离开事件
+    frame:SetScript("OnEnter", function(self)
+        -- 可以在这里添加悬停效果
+    end)
     
-    -- 创建内容框架
-    self:CreateContentFrame(frame)
+    frame:SetScript("OnLeave", function(self)
+        -- 可以在这里移除悬停效果
+    end)
     
-    -- 创建货币显示区域
-    self:CreateCurrencyFrame(self.contentFrame)
+    -- 右键菜单
+    frame:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then
+            MF:ShowContextMenu()
+        end
+    end)
     
-    -- 创建声望显示区域
-    self:CreateReputationFrame(self.contentFrame)
+    self.frame = frame
     
-    -- 初始化显示
-    self:UpdateLayout()
+    -- 创建子元素
+    self:CreateTitle()
+    self:CreateCloseButton()
+    self:CreateScrollFrame()
+    self:CreateResizeButton()
+    self:CreateStatusBar()
     
-    -- 从保存的配置加载位置
-    self:LoadPosition()
+    -- 初始显示状态
+    if settings.shown then
+        frame:Show()
+    else
+        frame:Hide()
+    end
     
     CF:LogInfo("主窗口创建完成")
-    
     return frame
 end
 
 -- ====================================================================
 -- 创建标题栏
 -- ====================================================================
-function MF:CreateTitleBar(parent)
-    local titleBar = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    self.titleBar = titleBar
-    
-    titleBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 8, -8)
-    titleBar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -8, -8)
-    titleBar:SetHeight(30)
-    
-    -- 标题文本
-    local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("LEFT", titleBar, "LEFT", 5, 0)
-    title:SetText(CF:Colorize(CF.L["MAIN_FRAME_TITLE"], CF.COLORS.GOLD))
-    titleBar.title = title
-    
-    -- 关闭按钮
-    local closeBtn = CreateFrame("Button", nil, titleBar, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", titleBar, "TOPRIGHT", 5, 5)
-    closeBtn:SetSize(20, 20)
-    closeBtn:SetScript("OnClick", function()
-        MF:Hide()
-    end)
-    titleBar.closeBtn = closeBtn
-    
-    -- 锁定按钮
-    local lockBtn = CreateFrame("Button", nil, titleBar)
-    lockBtn:SetSize(20, 20)
-    lockBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
-    lockBtn:SetNormalTexture("Interface\\AddOns\\CopperFever\\Textures\\LockIcon")
-    lockBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    lockBtn:SetScript("OnClick", function()
-        MF:ToggleLock()
-    end)
-    lockBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText(CF.L["TOOLTIP_LOCK_WINDOW"])
-        GameTooltip:Show()
-    end)
-    lockBtn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    titleBar.lockBtn = lockBtn
-    
-    -- 刷新按钮
-    local refreshBtn = CreateFrame("Button", nil, titleBar)
-    refreshBtn:SetSize(20, 20)
-    refreshBtn:SetPoint("RIGHT", lockBtn, "LEFT", -5, 0)
-    refreshBtn:SetNormalTexture("Interface\\AddOns\\CopperFever\\Textures\\RefreshIcon")
-    refreshBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    refreshBtn:SetScript("OnClick", function()
-        MF:Refresh()
-    end)
-    refreshBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText(CF.L["BUTTON_REFRESH"])
-        GameTooltip:Show()
-    end)
-    refreshBtn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    titleBar.refreshBtn = refreshBtn
-end
-
--- ====================================================================
--- 创建内容框架
--- ====================================================================
-function MF:CreateContentFrame(parent)
-    local contentFrame = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-    self.contentFrame = contentFrame
-    
-    contentFrame:SetPoint("TOPLEFT", self.titleBar, "BOTTOMLEFT", 0, -5)
-    contentFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -28, 8)
-    
-    -- 创建滚动子框架
-    local scrollChild = CreateFrame("Frame", nil, contentFrame)
-    contentFrame:SetScrollChild(scrollChild)
-    scrollChild:SetSize(contentFrame:GetWidth(), 1)
-    
-    contentFrame.scrollChild = scrollChild
-end
-
--- ====================================================================
--- 创建货币显示区域
--- ====================================================================
-function MF:CreateCurrencyFrame(parent)
-    local currencyFrame = CreateFrame("Frame", nil, parent.scrollChild)
-    self.currencyFrame = currencyFrame
-    
-    currencyFrame:SetPoint("TOPLEFT", parent.scrollChild, "TOPLEFT", 5, -5)
-    currencyFrame:SetPoint("TOPRIGHT", parent.scrollChild, "TOPRIGHT", -5, -5)
-    currencyFrame:SetHeight(1)
-    
-    -- 标题
-    local title = currencyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", currencyFrame, "TOPLEFT", 0, 0)
-    title:SetText(CF:Colorize(CF.L["CURRENCY"], CF.COLORS.YELLOW))
-    currencyFrame.title = title
-end
-
--- ====================================================================
--- 创建声望显示区域
--- ====================================================================
-function MF:CreateReputationFrame(parent)
-    local reputationFrame = CreateFrame("Frame", nil, parent.scrollChild)
-    self.reputationFrame = reputationFrame
-    
-    reputationFrame:SetPoint("TOPLEFT", self.currencyFrame, "BOTTOMLEFT", 0, -10)
-    reputationFrame:SetPoint("TOPRIGHT", self.currencyFrame, "BOTTOMRIGHT", 0, -10)
-    reputationFrame:SetHeight(1)
-    
-    -- 标题
-    local title = reputationFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", reputationFrame, "TOPLEFT", 0, 0)
-    title:SetText(CF:Colorize(CF.L["REPUTATION"], CF.COLORS.YELLOW))
-    reputationFrame.title = title
-end
-
--- ====================================================================
--- 创建货币显示项
--- ====================================================================
-function MF:CreateCurrencyItem(parent, index)
-    local item = CreateFrame("Frame", nil, parent)
-    item:SetHeight(30)
-    
-    -- 图标
-    local icon = item:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(24, 24)
-    icon:SetPoint("LEFT", item, "LEFT", 0, 0)
-    item.icon = icon
-    
-    -- 名称
-    local name = item:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetPoint("LEFT", icon, "RIGHT", 5, 0)
-    name:SetJustifyH("LEFT")
-    item.name = name
-    
-    -- 数量
-    local amount = item:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    amount:SetPoint("RIGHT", item, "RIGHT", 0, 0)
-    amount:SetJustifyH("RIGHT")
-    item.amount = amount
-    
-    -- 鼠标提示
-    item:EnableMouse(true)
-    item:SetScript("OnEnter", function(self)
-        if self.currencyData then
-            MF:ShowCurrencyTooltip(self, self.currencyData)
-        end
-    end)
-    item:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    
-    return item
-end
-
--- ====================================================================
--- 创建声望显示项
--- ====================================================================
-function MF:CreateReputationItem(parent, index)
-    local item = CreateFrame("Frame", nil, parent)
-    item:SetHeight(40)
-    
-    -- 名称
-    local name = item:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetPoint("TOPLEFT", item, "TOPLEFT", 0, 0)
-    name:SetJustifyH("LEFT")
-    item.name = name
-    
-    -- 等级
-    local standing = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    standing:SetPoint("TOPRIGHT", item, "TOPRIGHT", 0, 0)
-    standing:SetJustifyH("RIGHT")
-    item.standing = standing
-    
-    -- 进度条
-    local bar = CreateFrame("StatusBar", nil, item)
-    bar:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-    bar:SetPoint("TOPRIGHT", standing, "BOTTOMRIGHT", 0, -3)
-    bar:SetHeight(12)
-    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    bar:SetMinMaxValues(0, 100)
-    bar:SetValue(0)
-    item.bar = bar
-    
-    -- 进度条背景
-    local barBg = bar:CreateTexture(nil, "BACKGROUND")
-    barBg:SetAllPoints(bar)
-    barBg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    barBg:SetVertexColor(0.3, 0.3, 0.3, 0.5)
-    bar.bg = barBg
-    
-    -- 进度文本
-    local barText = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    barText:SetPoint("CENTER", bar, "CENTER", 0, 0)
-    bar.text = barText
-    
-    -- 鼠标提示
-    item:EnableMouse(true)
-    item:SetScript("OnEnter", function(self)
-        if self.reputationData then
-            MF:ShowReputationTooltip(self, self.reputationData)
-        end
-    end)
-    item:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    
-    return item
-end
-
--- ====================================================================
--- 更新显示
--- ====================================================================
-function MF:Update()
-    if self.isUpdating then
-        return
-    end
-    
-    self.isUpdating = true
-    
-    -- 获取当前区域数据
-    local zoneData = CF.DataManager:GetCurrentZoneData()
-    
-    if not zoneData then
-        self:ShowNoData()
-        self.isUpdating = false
-        return
-    end
-    
-    self.currentMapID = zoneData.mapID
-    
-    -- 更新标题显示当前区域
-    if self.titleBar and self.titleBar.title then
-        local titleText = CF:Colorize(CF.L["MAIN_FRAME_TITLE"], CF.COLORS.GOLD) .. 
-                         " - " .. CF:Colorize(zoneData.mapName, CF.COLORS.COMMON)
-        self.titleBar.title:SetText(titleText)
-    end
-    
-    -- 更新货币显示
-    self:UpdateCurrencyDisplay(zoneData.currencies)
-    
-    -- 更新声望显示
-    self:UpdateReputationDisplay(zoneData.reputations)
-    
-    -- 更新布局
-    self:UpdateLayout()
-    
-    self.isUpdating = false
-end
-
--- ====================================================================
--- 更新货币显示
--- ====================================================================
-function MF:UpdateCurrencyDisplay(currencies)
-    if not currencies or #currencies == 0 then
-        -- 隐藏所有货币项
-        for _, item in ipairs(self.currencyItems) do
-            item:Hide()
-        end
-        
-        -- 显示"无数据"消息
-        if not self.currencyFrame.noDataText then
-            local text = self.currencyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            text:SetPoint("TOPLEFT", self.currencyFrame.title, "BOTTOMLEFT", 0, -5)
-            text:SetText(CF:Colorize(CF.L["INFO_ZONE_NO_CURRENCIES"], CF.COLORS.GRAY))
-            self.currencyFrame.noDataText = text
-        end
-        self.currencyFrame.noDataText:Show()
-        
-        return
-    end
-    
-    -- 隐藏"无数据"消息
-    if self.currencyFrame.noDataText then
-        self.currencyFrame.noDataText:Hide()
-    end
-    
-    -- 确保有足够的显示项
-    while #self.currencyItems < #currencies do
-        local item = self:CreateCurrencyItem(self.currencyFrame, #self.currencyItems + 1)
-        table.insert(self.currencyItems, item)
-    end
-    
-    -- 获取布局设置
-    local db = CopperFeverDB
-    local settings = db and db.settings or CF.DEFAULTS
-    local iconSize = settings.display.iconSize or CF.DEFAULTS.display.iconSize
-    local spacing = settings.display.spacing or CF.DEFAULTS.display.spacing
-    local showIcons = settings.display.showIcons ~= false
-    
-    -- 更新每个货币项
-    for i, currency in ipairs(currencies) do
-        local item = self.currencyItems[i]
-        
-        -- 设置图标
-        if showIcons and currency.icon then
-            item.icon:SetTexture(currency.icon)
-            item.icon:SetSize(iconSize, iconSize)
-            item.icon:Show()
-        else
-            item.icon:Hide()
-        end
-        
-        -- 设置名称
-        local nameColor = CF:GetQualityColor(2)  -- 默认绿色
-        item.name:SetText(CF:Colorize(currency.name, nameColor))
-        
-        -- 设置数量
-        local amountText = CF:FormatLocalizedNumber(currency.amount)
-        if currency.maxAmount and currency.maxAmount > 0 then
-            amountText = amountText .. " / " .. CF:FormatLocalizedNumber(currency.maxAmount)
-        end
-        item.amount:SetText(CF:Colorize(amountText, CF.COLORS.COMMON))
-        
-        -- 保存数据用于提示
-        item.currencyData = currency
-        
-        -- 定位
-        if i == 1 then
-            item:SetPoint("TOPLEFT", self.currencyFrame.title, "BOTTOMLEFT", 0, -5)
-        else
-            item:SetPoint("TOPLEFT", self.currencyItems[i-1], "BOTTOMLEFT", 0, -spacing)
-        end
-        item:SetPoint("TOPRIGHT", self.currencyFrame, "TOPRIGHT", 0, 0)
-        
-        item:Show()
-    end
-    
-    -- 隐藏未使用的项
-    for i = #currencies + 1, #self.currencyItems do
-        self.currencyItems[i]:Hide()
-    end
-end
-
--- ====================================================================
--- 更新声望显示
--- ====================================================================
-function MF:UpdateReputationDisplay(reputations)
-    if not reputations or #reputations == 0 then
-        -- 隐藏所有声望项
-        for _, item in ipairs(self.reputationItems) do
-            item:Hide()
-        end
-        return
-    end
-    
-    -- 确保有足够的显示项
-    while #self.reputationItems < #reputations do
-        local item = self:CreateReputationItem(self.reputationFrame, #self.reputationItems + 1)
-        table.insert(self.reputationItems, item)
-    end
-    
-    -- 获取布局设置
-    local db = CopperFeverDB
-    local settings = db and db.settings or CF.DEFAULTS
-    local spacing = settings.display.spacing or CF.DEFAULTS.display.spacing
-    
-    -- 更新每个声望项
-    for i, reputation in ipairs(reputations) do
-        local item = self.reputationItems[i]
-        
-        -- 设置名称
-        local nameColor = CF:GetQualityColor(2)  -- 默认绿色
-        item.name:SetText(CF:Colorize(reputation.name, nameColor))
-        
-        -- 设置等级
-        local standingName = CF.DataManager:GetReputationStandingName(reputation.standing)
-        local standingColor = CF:GetQualityColor(reputation.standing - 1)
-        item.standing:SetText(CF:Colorize(standingName, standingColor))
-        
-        -- 设置进度条
-        item.bar:SetMinMaxValues(0, reputation.max)
-        item.bar:SetValue(reputation.current)
-        item.bar:SetStatusBarColor(standingColor.r, standingColor.g, standingColor.b)
-        
-        -- 设置进度文本
-        local percentText = string.format("%.1f%%", reputation.percent)
-        item.bar.text:SetText(percentText)
-        
-        -- 保存数据用于提示
-        item.reputationData = reputation
-        
-        -- 定位
-        if i == 1 then
-            item:SetPoint("TOPLEFT", self.reputationFrame.title, "BOTTOMLEFT", 0, -5)
-        else
-            item:SetPoint("TOPLEFT", self.reputationItems[i-1], "BOTTOMLEFT", 0, -spacing)
-        end
-        item:SetPoint("TOPRIGHT", self.reputationFrame, "TOPRIGHT", 0, 0)
-        
-        item:Show()
-    end
-    
-    -- 隐藏未使用的项
-    for i = #reputations + 1, #self.reputationItems do
-        self.reputationItems[i]:Hide()
-    end
-end
-
--- ====================================================================
--- 更新布局
--- ====================================================================
-function MF:UpdateLayout()
+function MF:CreateTitle()
     if not self.frame then return end
     
-    -- 计算货币区域高度
-    local currencyHeight = 20  -- 标题高度
-    for i, item in ipairs(self.currencyItems) do
-        if item:IsShown() then
-            currencyHeight = currencyHeight + item:GetHeight() + 5
+    local title = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", self.frame, "TOP", 0, -15)
+    title:SetText(CF:L("MAIN_FRAME_TITLE"))
+    title:SetTextColor(1, 0.82, 0)
+    
+    self.elements.title = title
+end
+
+-- ====================================================================
+-- 创建关闭按钮
+-- ====================================================================
+function MF:CreateCloseButton()
+    if not self.frame then return end
+    
+    local closeButton = CreateFrame("Button", nil, self.frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -5, -5)
+    closeButton:SetSize(24, 24)
+    
+    closeButton:SetScript("OnClick", function()
+        MF:Hide()
+    end)
+    
+    closeButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(CF:L("TOOLTIP_HIDE_WINDOW"))
+        GameTooltip:Show()
+    end)
+    
+    closeButton:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+    
+    self.elements.closeButton = closeButton
+end
+
+-- ====================================================================
+-- 创建滚动框架
+-- ====================================================================
+function MF:CreateScrollFrame()
+    if not self.frame then return end
+    
+    local scrollFrame = CreateFrame("ScrollFrame", nil, self.frame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 20, -45)
+    scrollFrame:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -30, 35)
+    
+    -- 创建内容容器
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    content:SetSize(scrollFrame:GetWidth(), 1) -- 高度会动态调整
+    scrollFrame:SetScrollChild(content)
+    
+    self.elements.scrollFrame = scrollFrame
+    self.elements.content = content
+end
+
+-- ====================================================================
+-- 创建调整大小按钮
+-- ====================================================================
+function MF:CreateResizeButton()
+    if not self.frame then return end
+    
+    local resizeButton = CreateFrame("Button", nil, self.frame)
+    resizeButton:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -5, 5)
+    resizeButton:SetSize(16, 16)
+    resizeButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    resizeButton:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    resizeButton:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    
+    resizeButton:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            MF.frame:StartSizing("BOTTOMRIGHT")
+        end
+    end)
+    
+    resizeButton:SetScript("OnMouseUp", function(self, button)
+        MF.frame:StopMovingOrSizing()
+        MF:SavePosition()
+        MF:Update() -- 调整大小后重新布局
+    end)
+    
+    self.frame:SetResizable(true)
+    self.frame:SetMinResize(150, 200)
+    self.frame:SetMaxResize(400, 600)
+    
+    self.elements.resizeButton = resizeButton
+end
+
+-- ====================================================================
+-- 创建状态栏
+-- ====================================================================
+function MF:CreateStatusBar()
+    if not self.frame then return end
+    
+    local statusBar = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    statusBar:SetPoint("BOTTOM", self.frame, "BOTTOM", 0, 15)
+    statusBar:SetText(CF:L("STATUS_READY"))
+    statusBar:SetTextColor(0.7, 0.7, 0.7)
+    
+    self.elements.statusBar = statusBar
+end
+
+-- ====================================================================
+-- 更新状态栏
+-- ====================================================================
+function MF:UpdateStatusBar(text)
+    if self.elements.statusBar then
+        self.elements.statusBar:SetText(text or CF:L("STATUS_READY"))
+    end
+end
+
+-- ====================================================================
+-- 更新显示内容
+-- ====================================================================
+function MF:Update()
+    if not self.frame or not self.frame:IsShown() then
+        return
+    end
+    
+    CF:LogInfo("更新主窗口内容")
+    self:UpdateStatusBar(CF:L("STATUS_UPDATING"))
+    
+    -- 清除现有内容
+    self:ClearContent()
+    
+    -- 获取当前区域数据
+    local zoneData = nil
+    if CF.DataManager and CF.DataManager.GetCurrentZoneData then
+        local success, data = pcall(CF.DataManager.GetCurrentZoneData, CF.DataManager)
+        if success then
+            zoneData = data
+        else
+            CF:LogError("获取区域数据失败: %s", tostring(data))
+            self:UpdateStatusBar(CF:L("STATUS_ERROR"))
         end
     end
-    if self.currencyFrame.noDataText and self.currencyFrame.noDataText:IsShown() then
-        currencyHeight = currencyHeight + 20
-    end
-    self.currencyFrame:SetHeight(currencyHeight)
     
-    -- 计算声望区域高度
-    local reputationHeight = 20  -- 标题高度
-    for i, item in ipairs(self.reputationItems) do
-        if item:IsShown() then
-            reputationHeight = reputationHeight + item:GetHeight() + 5
+    if not zoneData or (not zoneData.hasCurrencies and not zoneData.hasReputations) then
+        self:ShowNoData()
+        self:UpdateStatusBar(CF:L("INFO_ZONE_NO_CURRENCIES"))
+        return
+    end
+    
+    local yOffset = 0
+    
+    -- 显示区域名称
+    if zoneData.mapName then
+        yOffset = self:DisplayZoneName(zoneData.mapName, yOffset)
+    end
+    
+    -- 显示货币
+    if zoneData.hasCurrencies then
+        yOffset = self:DisplayCurrencies(zoneData.currencies, yOffset)
+    end
+    
+    -- 显示声望
+    if zoneData.hasReputations then
+        yOffset = self:DisplayReputations(zoneData.reputations, yOffset)
+    end
+    
+    -- 调整内容高度
+    if self.elements.content then
+        self.elements.content:SetHeight(math.max(yOffset, 1))
+    end
+    
+    -- 更新状态栏
+    local statusText = string.format("%d %s, %d %s", 
+        #(zoneData.currencies or {}), CF:L("CURRENCY"),
+        #(zoneData.reputations or {}), CF:L("REPUTATION"))
+    self:UpdateStatusBar(statusText)
+end
+
+-- ====================================================================
+-- 显示区域名称
+-- ====================================================================
+function MF:DisplayZoneName(mapName, yOffset)
+    if not self.elements.content or not mapName then
+        return yOffset
+    end
+    
+    local zoneName = self.elements.content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    zoneName:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    zoneName:SetText(mapName)
+    zoneName:SetTextColor(0.8, 0.8, 1)
+    yOffset = yOffset + 20
+    
+    -- 分隔线
+    local separator = self.elements.content:CreateTexture(nil, "ARTWORK")
+    separator:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    separator:SetSize(self.elements.content:GetWidth() - 10, 1)
+    separator:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    yOffset = yOffset + 10
+    
+    return yOffset
+end
+
+-- ====================================================================
+-- 显示货币列表
+-- ====================================================================
+function MF:DisplayCurrencies(currencies, yOffset)
+    if not self.elements.content or not currencies or #currencies == 0 then
+        return yOffset
+    end
+    
+    local db = CopperFeverDB
+    local settings = db and db.settings and db.settings.display or CF.DEFAULTS.display
+    
+    -- 货币标题
+    local header = self.elements.content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    header:SetText(CF:L("CURRENCY"))
+    header:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 20
+    
+    -- 显示每个货币
+    for _, currency in ipairs(currencies) do
+        local row = self:CreateCurrencyRow(currency, yOffset)
+        if row then
+            table.insert(self.contentRows, row)
+            yOffset = yOffset + (settings.iconSize or 24) + (settings.spacing or 5)
         end
     end
-    self.reputationFrame:SetHeight(reputationHeight)
     
-    -- 更新滚动子框架高度
-    local totalHeight = currencyHeight + reputationHeight + 20
-    self.contentFrame.scrollChild:SetHeight(math.max(totalHeight, self.contentFrame:GetHeight()))
+    yOffset = yOffset + 10 -- 添加间距
+    
+    return yOffset
 end
 
 -- ====================================================================
--- 显示货币提示信息
+-- 创建货币行
 -- ====================================================================
-function MF:ShowCurrencyTooltip(frame, currencyData)
-    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
-    GameTooltip:SetText(currencyData.name, 1, 1, 1)
-    
-    -- 当前数量
-    CF:AddLocalizedTooltipLine(GameTooltip, "CURRENT", CF.COLORS.COMMON)
-    GameTooltip:AddDoubleLine(CF.L["CURRENT"], CF:FormatLocalizedNumber(currencyData.amount), 
-                              1, 1, 1, 1, 1, 1)
-    
-    -- 最大数量
-    if currencyData.maxAmount and currencyData.maxAmount > 0 then
-        GameTooltip:AddDoubleLine(CF.L["MAX"], CF:FormatLocalizedNumber(currencyData.maxAmount), 
-                                  1, 1, 1, 1, 1, 1)
+function MF:CreateCurrencyRow(currency, yOffset)
+    if not self.elements.content or not currency then
+        return nil
     end
     
-    -- 本周获得
-    if currencyData.weeklyAmount and currencyData.weeklyAmount > 0 then
-        GameTooltip:AddDoubleLine(CF.L["EARNED_THIS_WEEK"], CF:FormatLocalizedNumber(currencyData.weeklyAmount), 
-                                  1, 1, 1, 1, 1, 1)
+    local db = CopperFeverDB
+    local settings = db and db.settings and db.settings.display or CF.DEFAULTS.display
+    
+    local row = CreateFrame("Frame", nil, self.elements.content)
+    row:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    row:SetSize(self.elements.content:GetWidth() - 10, settings.iconSize or 24)
+    
+    -- 图标
+    local iconOffset = 0
+    if settings.showIcons and currency.icon then
+        local icon = row:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("LEFT", row, "LEFT", 0, 0)
+        icon:SetSize(settings.iconSize or 24, settings.iconSize or 24)
+        icon:SetTexture(currency.icon)
+        iconOffset = (settings.iconSize or 24) + 5
     end
     
-    GameTooltip:Show()
+    -- 名称
+    local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    name:SetPoint("LEFT", row, "LEFT", iconOffset, 0)
+    name:SetText(currency.name or CF:L("UNKNOWN"))
+    name:SetFont(name:GetFont(), settings.fontSize or 12)
+    name:SetJustifyH("LEFT")
+    name:SetWidth(row:GetWidth() - iconOffset - 60)
+    name:SetWordWrap(false)
+    
+    -- 数量
+    local amount = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    amount:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    amount:SetText(CF:FormatLocalizedNumber(currency.amount or 0))
+    amount:SetFont(amount:GetFont(), settings.fontSize or 12)
+    amount:SetJustifyH("RIGHT")
+    
+    -- 如果达到上限，显示为红色
+    if currency.maxAmount and currency.maxAmount > 0 and 
+       currency.amount >= currency.maxAmount then
+        amount:SetTextColor(1, 0.3, 0.3)
+    else
+        amount:SetTextColor(1, 1, 1)
+    end
+    
+    -- 工具提示
+    if settings.showTooltips then
+        row:EnableMouse(true)
+        row:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(currency.name or CF:L("UNKNOWN"), 1, 1, 1)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_AMOUNT"), 
+                CF:FormatLocalizedNumber(currency.amount or 0), 1, 1, 1, 1, 1, 1)
+            
+            if currency.maxAmount and currency.maxAmount > 0 then
+                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_MAX"), 
+                    CF:FormatLocalizedNumber(currency.maxAmount), 1, 1, 1, 1, 1, 1)
+            end
+            
+            if currency.weeklyAmount and currency.weeklyMax and currency.weeklyMax > 0 then
+                GameTooltip:AddDoubleLine(CF:L("WEEKLY"), 
+                    string.format("%s / %s", 
+                        CF:FormatLocalizedNumber(currency.weeklyAmount), 
+                        CF:FormatLocalizedNumber(currency.weeklyMax)), 
+                    1, 1, 1, 1, 1, 1)
+            end
+            
+            if currency.type then
+                local typeName = CF:GetCurrencyTypeLocalizedName(currency.type)
+                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_TYPE"), 
+                    typeName, 1, 1, 1, 0.7, 0.7, 0.7)
+            end
+            
+            GameTooltip:Show()
+        end)
+        
+        row:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+        
+        -- 点击事件
+        row:SetScript("OnMouseUp", function(self, button)
+            if button == "LeftButton" then
+                -- 这里可以添加点击后的操作
+                CF:LogInfo("点击货币: %s", currency.name)
+            end
+        end)
+    end
+    
+    return row
 end
 
 -- ====================================================================
--- 显示声望提示信息
+-- 显示声望列表
 -- ====================================================================
-function MF:ShowReputationTooltip(frame, reputationData)
-    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
-    GameTooltip:SetText(reputationData.name, 1, 1, 1)
+function MF:DisplayReputations(reputations, yOffset)
+    if not self.elements.content or not reputations or #reputations == 0 then
+        return yOffset
+    end
     
-    -- 当前等级
-    local standingName = CF.DataManager:GetReputationStandingName(reputationData.standing)
-    GameTooltip:AddDoubleLine(CF.L["REPUTATION_LEVEL"], standingName, 1, 1, 1, 1, 1, 1)
+    local db = CopperFeverDB
+    local settings = db and db.settings and db.settings.display or CF.DEFAULTS.display
     
-    -- 进度
-    local progressText = string.format("%d / %d (%.1f%%)", 
-                                       reputationData.current, 
-                                       reputationData.max, 
-                                       reputationData.percent)
-    GameTooltip:AddDoubleLine(CF.L["CURRENT"], progressText, 1, 1, 1, 1, 1, 1)
+    -- 声望标题
+    local header = self.elements.content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    header:SetText(CF:L("REPUTATION"))
+    header:SetTextColor(1, 0.82, 0)
+    yOffset = yOffset + 20
     
-    GameTooltip:Show()
+    -- 显示每个声望
+    for _, reputation in ipairs(reputations) do
+        local row = self:CreateReputationRow(reputation, yOffset)
+        if row then
+            table.insert(self.contentRows, row)
+            yOffset = yOffset + (settings.iconSize or 24) + 10 + (settings.spacing or 5)
+        end
+    end
+    
+    yOffset = yOffset + 10 -- 添加间距
+    
+    return yOffset
 end
 
 -- ====================================================================
--- 显示"无数据"消息
+-- 创建声望行
+-- ====================================================================
+function MF:CreateReputationRow(reputation, yOffset)
+    if not self.elements.content or not reputation then
+        return nil
+    end
+    
+    local db = CopperFeverDB
+    local settings = db and db.settings and db.settings.display or CF.DEFAULTS.display
+    
+    local row = CreateFrame("Frame", nil, self.elements.content)
+    row:SetPoint("TOPLEFT", self.elements.content, "TOPLEFT", 5, -yOffset)
+    row:SetSize(self.elements.content:GetWidth() - 10, (settings.iconSize or 24) + 10)
+    
+    -- 名称
+    local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    name:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    name:SetText(reputation.name or CF:L("UNKNOWN"))
+    name:SetFont(name:GetFont(), settings.fontSize or 12)
+    name:SetJustifyH("LEFT")
+    
+    -- 进度百分比
+    local progress = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    progress:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
+    progress:SetText(string.format("%.1f%%", reputation.percent or 0))
+    progress:SetFont(progress:GetFont(), settings.fontSize or 12)
+    progress:SetJustifyH("RIGHT")
+    
+    -- 进度条
+    local progressBar = CreateFrame("StatusBar", nil, row)
+    progressBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+    progressBar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    progressBar:SetHeight(8)
+    progressBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    progressBar:SetMinMaxValues(0, 100)
+    progressBar:SetValue(reputation.percent or 0)
+    
+    -- 根据声望等级设置颜色
+    local color = self:GetReputationColor(reputation.standing or 4)
+    progressBar:SetStatusBarColor(color.r, color.g, color.b)
+    
+    -- 进度条背景
+    local bgTexture = progressBar:CreateTexture(nil, "BACKGROUND")
+    bgTexture:SetAllPoints(progressBar)
+    bgTexture:SetColorTexture(0.2, 0.2, 0.2, 0.5)
+    
+    -- 工具提示
+    if settings.showTooltips then
+        row:EnableMouse(true)
+        row:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(reputation.name or CF:L("UNKNOWN"), 1, 1, 1)
+            GameTooltip:AddLine(" ")
+            
+            if CF.DataManager and CF.DataManager.GetReputationStandingName then
+                local standingName = CF.DataManager:GetReputationStandingName(reputation.standing)
+                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_REPUTATION_STANDING"), 
+                    standingName, 1, 1, 1, color.r, color.g, color.b)
+            end
+            
+            GameTooltip:AddDoubleLine(CF:L("CURRENT"), 
+                string.format("%d / %d", reputation.current or 0, reputation.max or 0), 
+                1, 1, 1, 1, 1, 1)
+            
+            GameTooltip:AddDoubleLine(CF:L("PROGRESS_PERCENTAGE"), 
+                string.format("%.1f%%", reputation.percent or 0), 
+                1, 1, 1, 1, 1, 1)
+            
+            if reputation.faction then
+                local factionName = CF:GetFactionLocalizedName(reputation.faction)
+                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_REPUTATION_FACTION"), 
+                    factionName, 1, 1, 1, 0.7, 0.7, 0.7)
+            end
+            
+            GameTooltip:Show()
+        end)
+        
+        row:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+    end
+    
+    return row
+end
+
+-- ====================================================================
+-- 获取声望颜色
+-- ====================================================================
+function MF:GetReputationColor(standing)
+    -- 1=仇恨, 2=敌对, 3=不友好, 4=中立, 5=友好, 6=尊敬, 7=崇敬, 8=崇拜
+    if standing == 1 or standing == 2 then
+        return {r = 0.8, g = 0.1, b = 0.1} -- 红色
+    elseif standing == 3 then
+        return {r = 1.0, g = 0.5, b = 0.0} -- 橙色
+    elseif standing == 4 then
+        return {r = 1.0, g = 1.0, b = 0.0} -- 黄色
+    elseif standing == 5 then
+        return {r = 0.0, g = 0.8, b = 0.0} -- 绿色
+    elseif standing >= 6 then
+        return {r = 0.0, g = 0.6, b = 1.0} -- 蓝色
+    end
+    return {r = 1.0, g = 1.0, b = 1.0} -- 默认白色
+end
+
+-- ====================================================================
+-- 清除内容
+-- ====================================================================
+function MF:ClearContent()
+    if not self.elements.content then
+        return
+    end
+    
+    -- 清除所有行
+    for _, row in ipairs(self.contentRows) do
+        if row then
+            row:Hide()
+            row:SetParent(nil)
+        end
+    end
+    self.contentRows = {}
+    
+    -- 移除所有子对象
+    local children = {self.elements.content:GetChildren()}
+    for _, child in ipairs(children) do
+        child:Hide()
+        child:SetParent(nil)
+    end
+    
+    -- 清除所有纹理
+    local regions = {self.elements.content:GetRegions()}
+    for _, region in ipairs(regions) do
+        if region:GetObjectType() == "Texture" or region:GetObjectType() == "FontString" then
+            region:Hide()
+            region:SetParent(nil)
+        end
+    end
+end
+
+-- ====================================================================
+-- 显示无数据提示
 -- ====================================================================
 function MF:ShowNoData()
-    -- 清空显示
-    for _, item in ipairs(self.currencyItems) do
-        item:Hide()
-    end
-    for _, item in ipairs(self.reputationItems) do
-        item:Hide()
+    if not self.elements.content then
+        return
     end
     
-    -- 显示消息
-    if not self.noDataText then
-        local text = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        text:SetPoint("CENTER", self.frame, "CENTER", 0, 0)
-        self.noDataText = text
-    end
+    self:ClearContent()
     
-    self.noDataText:SetText(CF:Colorize(CF.L["ERROR_NO_DATA_AVAILABLE"], CF.COLORS.GRAY))
-    self.noDataText:Show()
+    local noData = self.elements.content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    noData:SetPoint("CENTER", self.elements.content, "CENTER", 0, 20)
+    noData:SetText(CF:L("INFO_ZONE_NO_CURRENCIES"))
+    noData:SetTextColor(0.7, 0.7, 0.7)
+    
+    local hint = self.elements.content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hint:SetPoint("TOP", noData, "BOTTOM", 0, -10)
+    hint:SetText(CF:L("INFO_CONFIGURE_ZONE"))
+    hint:SetTextColor(0.5, 0.5, 0.5)
 end
 
 -- ====================================================================
--- 窗口控制函数
+-- 显示右键菜单
 -- ====================================================================
+function MF:ShowContextMenu()
+    local menu = CreateFrame("Frame", "CopperFeverContextMenu", UIParent, "UIDropDownMenuTemplate")
+    
+    local menuList = {
+        {
+            text = CF:L("MENU_TOGGLE_WINDOW"),
+            func = function() MF:Toggle() end,
+            notCheckable = true,
+        },
+        {
+            text = CF:L("MENU_LOCK_WINDOW"),
+            func = function() MF:SetLocked(true) end,
+            notCheckable = true,
+        },
+        {
+            text = CF:L("MENU_UNLOCK_WINDOW"),
+            func = function() MF:SetLocked(false) end,
+            notCheckable = true,
+        },
+        {
+            text = CF:L("MENU_RESET_POSITION"),
+            func = function() MF:ResetPosition() end,
+            notCheckable = true,
+        },
+        {
+            text = CF:L("MENU_REFRESH_DATA"),
+            func = function() 
+                if CF.DataManager and CF.DataManager.RefreshData then
+                    CF.DataManager:RefreshData()
+                end
+            end,
+            notCheckable = true,
+        },
+        {
+            text = CF:L("MENU_SETTINGS"),
+            func = function() 
+                if CF.ConfigPanel and CF.ConfigPanel.Open then
+                    CF.ConfigPanel:Open()
+                end
+            end,
+            notCheckable = true,
+        },
+    }
+    
+    EasyMenu(menuList, menu, "cursor", 0, 0, "MENU")
+end
 
+-- ====================================================================
+-- 保存位置
+-- ====================================================================
+function MF:SavePosition()
+    if not self.frame then
+        return
+    end
+    
+    local db = CopperFeverDB
+    if not db or not db.settings then
+        return
+    end
+    
+    local point, _, relativePoint, x, y = self.frame:GetPoint()
+    
+    db.settings.mainFrame.point = point
+    db.settings.mainFrame.x = x
+    db.settings.mainFrame.y = y
+    db.settings.mainFrame.width = self.frame:GetWidth()
+    db.settings.mainFrame.height = self.frame:GetHeight()
+    
+    CF:LogInfo("窗口位置已保存")
+end
+
+-- ====================================================================
+-- 重置位置
+-- ====================================================================
+function MF:ResetPosition()
+    if not self.frame then
+        return
+    end
+    
+    local db = CopperFeverDB
+    if not db or not db.settings then
+        return
+    end
+    
+    local defaults = CF.DEFAULTS.mainFrame
+    
+    self.frame:ClearAllPoints()
+    self.frame:SetPoint(defaults.point, UIParent, defaults.point, defaults.x, defaults.y)
+    self.frame:SetSize(defaults.width, defaults.height)
+    
+    db.settings.mainFrame.point = defaults.point
+    db.settings.mainFrame.x = defaults.x
+    db.settings.mainFrame.y = defaults.y
+    db.settings.mainFrame.width = defaults.width
+    db.settings.mainFrame.height = defaults.height
+    
+    CF:ShowLocalizedMessage("MSG_POSITION_RESET")
+    CF:LogInfo("窗口位置已重置")
+end
+
+-- ====================================================================
+-- 显示/隐藏
+-- ====================================================================
 function MF:Show()
     if not self.frame then
-        self:Create()
+        return
     end
     
     self.frame:Show()
+    
+    local db = CopperFeverDB
+    if db and db.settings and db.settings.mainFrame then
+        db.settings.mainFrame.shown = true
+    end
+    
     self:Update()
 end
 
 function MF:Hide()
-    if self.frame then
-        self.frame:Hide()
+    if not self.frame then
+        return
+    end
+    
+    self.frame:Hide()
+    
+    local db = CopperFeverDB
+    if db and db.settings and db.settings.mainFrame then
+        db.settings.mainFrame.shown = false
     end
 end
 
 function MF:Toggle()
-    if self.frame and self.frame:IsShown() then
+    if not self.frame then
+        return
+    end
+    
+    if self.frame:IsShown() then
         self:Hide()
     else
         self:Show()
@@ -639,148 +786,98 @@ function MF:IsShown()
     return self.frame and self.frame:IsShown()
 end
 
-function MF:Refresh()
-    CF.DataManager:RefreshData()
-    self:Update()
-end
-
 -- ====================================================================
--- 锁定/解锁
+-- 设置锁定状态
 -- ====================================================================
-
-function MF:IsLocked()
-    local db = CopperFeverDB
-    return db and db.settings and db.settings.mainFrame and db.settings.mainFrame.locked or false
-end
-
 function MF:SetLocked(locked)
-    local db = CopperFeverDB
-    if db and db.settings and db.settings.mainFrame then
-        db.settings.mainFrame.locked = locked
+    if not self.frame then
+        return
     end
     
-    -- 更新锁定图标
-    if self.titleBar and self.titleBar.lockBtn then
-        if locked then
-            self.titleBar.lockBtn:SetNormalTexture("Interface\\AddOns\\CopperFever\\Textures\\LockedIcon")
-        else
-            self.titleBar.lockBtn:SetNormalTexture("Interface\\AddOns\\CopperFever\\Textures\\UnlockedIcon")
-        end
+    local db = CopperFeverDB
+    if not db or not db.settings then
+        return
     end
-end
-
-function MF:ToggleLock()
-    self:SetLocked(not self:IsLocked())
+    
+    db.settings.mainFrame.locked = locked
+    self.frame:SetMovable(not locked)
+    
+    if locked then
+        CF:LogInfo("窗口已锁定")
+    else
+        CF:LogInfo("窗口已解锁")
+    end
 end
 
 -- ====================================================================
--- 位置保存和加载
+-- 刷新
 -- ====================================================================
-
-function MF:SavePosition()
-    if not self.frame then return end
-    
-    local db = CopperFeverDB
-    if not db or not db.settings or not db.settings.mainFrame then return end
-    
-    local point, _, relativePoint, x, y = self.frame:GetPoint()
-    
-    db.settings.mainFrame.point = point
-    db.settings.mainFrame.x = x
-    db.settings.mainFrame.y = y
-end
-
-function MF:LoadPosition()
-    if not self.frame then return end
-    
-    local db = CopperFeverDB
-    if not db or not db.settings or not db.settings.mainFrame then return end
-    
-    local settings = db.settings.mainFrame
-    
-    if settings.point and settings.x and settings.y then
-        self.frame:ClearAllPoints()
-        self.frame:SetPoint(settings.point, UIParent, settings.point, settings.x, settings.y)
-    end
-end
-
-function MF:ResetPosition()
-    if not self.frame then return end
-    
-    self.frame:ClearAllPoints()
-    self.frame:SetPoint(CF.DEFAULTS.mainFrame.point, UIParent, CF.DEFAULTS.mainFrame.point,
-                       CF.DEFAULTS.mainFrame.x, CF.DEFAULTS.mainFrame.y)
-    
-    self:SavePosition()
-    
-    CF:ShowLocalizedSuccess("MSG_POSITION_RESET")
-end
-
--- ====================================================================
--- 应用设置
--- ====================================================================
-
-function MF:ApplySettings()
-    if not self.frame then return end
-    
-    local db = CopperFeverDB
-    if not db or not db.settings then return end
-    
-    local settings = db.settings.mainFrame or CF.DEFAULTS.mainFrame
-    
-    -- 应用大小
-    if settings.width and settings.height then
-        self.frame:SetSize(settings.width, settings.height)
-    end
-    
-    -- 应用缩放
-    if settings.scale then
-        self.frame:SetScale(settings.scale)
-    end
-    
-    -- 应用透明度
-    if settings.alpha then
-        self.frame:SetAlpha(settings.alpha)
-    end
-    
-    -- 应用背景颜色
-    if settings.backgroundColor then
-        local bg = settings.backgroundColor
-        self.frame:SetBackdropColor(bg.r, bg.g, bg.b, bg.a)
-    end
-    
-    -- 应用边框颜色
-    if settings.borderColor then
-        local border = settings.borderColor
-        self.frame:SetBackdropBorderColor(border.r, border.g, border.b, border.a)
-    end
-    
-    -- 应用锁定状态
-    self:SetLocked(settings.locked or false)
-    
-    -- 刷新显示
+function MF:Refresh()
     self:Update()
 end
 
 -- ====================================================================
--- 初始化
+-- 初始化主窗口
 -- ====================================================================
 function MF:Initialize()
-    CF:LogInfo("初始化主窗口...")
-    
-    -- 创建窗口（不显示）
-    self:Create()
-    
-    -- 应用保存的设置
-    self:ApplySettings()
-    
-    -- 根据配置决定是否显示
-    local db = CopperFeverDB
-    if db and db.settings and db.settings.mainFrame and db.settings.mainFrame.shown then
-        self:Show()
-    else
-        self:Hide()
+    if self.initialized then
+        CF:LogWarning("MainFrame 已经初始化过了")
+        return
     end
     
+    CF:LogInfo("初始化主窗口...")
+    
+    -- 创建窗口
+    self:CreateFrame()
+    
+    if not self.frame then
+        CF:LogError("主窗口创建失败")
+        return
+    end
+    
+    -- 注册事件
+    CF:RegisterEvent("DATA_UPDATED", function()
+        if MF.frame and MF.frame:IsShown() then
+            MF:Update()
+        end
+    end)
+    
+    CF:RegisterEvent("ZONE_CHANGED", function()
+        if MF.frame and MF.frame:IsShown() then
+            MF:Update()
+        end
+    end)
+    
+    CF:RegisterEvent("CURRENCY_UPDATED", function()
+        if MF.frame and MF.frame:IsShown() then
+            MF:Update()
+        end
+    end)
+    
+    CF:RegisterEvent("REPUTATION_UPDATED", function()
+        if MF.frame and MF.frame:IsShown() then
+            MF:Update()
+        end
+    end)
+    
+    self.initialized = true
     CF:LogInfo("主窗口初始化完成")
 end
+
+-- ====================================================================
+-- 清理函数
+-- ====================================================================
+function MF:Cleanup()
+    CF:LogInfo("清理主窗口...")
+    
+    if self.frame then
+        self:SavePosition()
+        self.frame:Hide()
+    end
+    
+    self:ClearContent()
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================
