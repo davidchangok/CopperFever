@@ -21,10 +21,18 @@ DM.mapCache = {}
 DM.updateTimer = nil
 DM.lastUpdateTime = 0
 
+-- 初始化标志
+DM.initialized = false
+
 -- ====================================================================
 -- 初始化数据管理器
 -- ====================================================================
 function DM:Initialize()
+    if self.initialized then
+        CF:LogWarning("DataManager 已经初始化过了")
+        return
+    end
+    
     CF:LogInfo("初始化数据管理器...")
     
     -- 清空缓存
@@ -36,6 +44,7 @@ function DM:Initialize()
     -- 启动定期更新
     self:StartAutoUpdate()
     
+    self.initialized = true
     CF:LogInfo("数据管理器初始化完成")
 end
 
@@ -59,7 +68,7 @@ function DM:GetCurrencyAmount(currencyID)
     local info, errorCode = CF:SafeGetCurrencyInfo(currencyID)
     
     if errorCode ~= CF.ERROR_CODES.SUCCESS or not info then
-        CF:LogWarning("获取货币信息失败: ID=%d, 错误码=%d", currencyID, errorCode)
+        CF:LogWarning("获取货币信息失败: ID=%d, 错误码=%d", currencyID, errorCode or 0)
         return 0
     end
     
@@ -93,10 +102,12 @@ function DM:GetCurrencyInfo(currencyID)
     end
     
     -- 合并静态数据
-    local staticData = CF.StaticData:GetCurrencyData(currencyID)
-    if staticData then
-        info.staticName = staticData.name
-        info.currencyType = staticData.type
+    if CF.StaticData and CF.StaticData.GetCurrencyData then
+        local staticData = CF.StaticData:GetCurrencyData(currencyID)
+        if staticData then
+            info.staticName = staticData.name
+            info.currencyType = staticData.type
+        end
     end
     
     -- 缓存结果
@@ -123,7 +134,7 @@ function DM:GetCurrencyList(currencyIDs)
                 amount = info.quantity or 0,
                 maxAmount = info.maxQuantity or 0,
                 weeklyAmount = info.quantityEarnedThisWeek or 0,
-                weeklyMax = info.maxQuantity or 0,
+                weeklyMax = info.canEarnPerWeek or 0,
                 discovered = info.discovered,
                 type = info.currencyType or CF.CURRENCY_TYPES.STANDARD,
             })
@@ -175,7 +186,10 @@ function DM:GetReputationInfo(factionID)
     end
     
     -- 获取静态数据
-    local staticData = CF.StaticData:GetReputationData(factionID)
+    local staticData = nil
+    if CF.StaticData and CF.StaticData.GetReputationData then
+        staticData = CF.StaticData:GetReputationData(factionID)
+    end
     
     -- 构建返回信息
     local info = {
@@ -260,11 +274,11 @@ end
 -- 获取声望等级名称
 function DM:GetReputationStandingName(standing)
     if type(standing) ~= "number" then
-        return CF.L["REPUTATION_STANDING_3"]
+        return CF.L["REPUTATION_STANDING_4"] or "Neutral"
     end
     
     local key = "REPUTATION_STANDING_" .. standing
-    return CF.L[key] or CF.L["REPUTATION_STANDING_3"]
+    return CF.L[key] or CF.L["REPUTATION_STANDING_4"] or "Neutral"
 end
 
 -- ====================================================================
@@ -304,95 +318,99 @@ function DM:GetMapInfo(mapID)
         return nil
     end
     
-    -- 合并静态数据
-    local staticData = CF.StaticData:GetMapData(mapID)
-    if staticData then
-        info.staticName = staticData.name
-        info.expansion = staticData.expansion
-        info.parentID = staticData.parentID
-    end
-    
     -- 缓存结果（地图信息不变，长期缓存）
     CF:SetCache(cacheKey, info, 3600)
     
     return info
 end
 
--- 获取地图的关联货币
+-- ====================================================================
+-- 地图关联管理
+-- ====================================================================
+
+-- 获取地图关联的货币列表
 function DM:GetMapCurrencies(mapID)
-    if type(mapID) ~= "number" then
+    if type(mapID) ~= "number" or mapID <= 0 then
         return {}
     end
     
-    -- 优先使用用户配置
     local db = CopperFeverDB
-    if db and db.mapAssociations and db.mapAssociations[mapID] and db.mapAssociations[mapID].currencies then
-        return db.mapAssociations[mapID].currencies
+    
+    -- 优先使用用户自定义的关联
+    if db and db.mapAssociations and db.mapAssociations[mapID] then
+        if db.mapAssociations[mapID].currencies then
+            return db.mapAssociations[mapID].currencies
+        end
     end
     
-    -- 使用静态数据
-    return CF.StaticData:GetMapCurrencies(mapID)
+    -- 使用静态数据中的关联
+    if CF.StaticData and CF.StaticData.MapCurrencyAssociations then
+        return CF.StaticData.MapCurrencyAssociations[mapID] or {}
+    end
+    
+    return {}
 end
 
--- 获取地图的关联声望
+-- 获取地图关联的声望列表
 function DM:GetMapReputations(mapID)
-    if type(mapID) ~= "number" then
+    if type(mapID) ~= "number" or mapID <= 0 then
         return {}
     end
     
-    -- 优先使用用户配置
     local db = CopperFeverDB
-    if db and db.mapAssociations and db.mapAssociations[mapID] and db.mapAssociations[mapID].reputations then
-        return db.mapAssociations[mapID].reputations
+    
+    -- 优先使用用户自定义的关联
+    if db and db.mapAssociations and db.mapAssociations[mapID] then
+        if db.mapAssociations[mapID].reputations then
+            return db.mapAssociations[mapID].reputations
+        end
     end
     
-    -- 使用静态数据
-    return CF.StaticData:GetMapReputations(mapID)
+    -- 使用静态数据中的关联
+    if CF.StaticData and CF.StaticData.MapReputationAssociations then
+        return CF.StaticData.MapReputationAssociations[mapID] or {}
+    end
+    
+    return {}
 end
 
--- 设置地图的关联货币
-function DM:SetMapCurrencies(mapID, currencyIDs)
-    if type(mapID) ~= "number" or type(currencyIDs) ~= "table" then
+-- 设置地图关联的货币列表
+function DM:SetMapCurrencies(mapID, currencies)
+    if type(mapID) ~= "number" or type(currencies) ~= "table" then
         return false
     end
     
     local db = CopperFeverDB
     if not db then
+        CF:LogError("数据库未初始化")
         return false
     end
     
-    -- 初始化表结构
     db.mapAssociations = db.mapAssociations or {}
     db.mapAssociations[mapID] = db.mapAssociations[mapID] or {}
+    db.mapAssociations[mapID].currencies = currencies
     
-    -- 设置货币列表
-    db.mapAssociations[mapID].currencies = currencyIDs
-    
-    CF:LogInfo("设置地图 %d 的关联货币: %d 个", mapID, #currencyIDs)
-    
+    CF:LogInfo("已设置地图 %d 的货币关联 (%d 个)", mapID, #currencies)
     return true
 end
 
--- 设置地图的关联声望
-function DM:SetMapReputations(mapID, factionIDs)
-    if type(mapID) ~= "number" or type(factionIDs) ~= "table" then
+-- 设置地图关联的声望列表
+function DM:SetMapReputations(mapID, reputations)
+    if type(mapID) ~= "number" or type(reputations) ~= "table" then
         return false
     end
     
     local db = CopperFeverDB
     if not db then
+        CF:LogError("数据库未初始化")
         return false
     end
     
-    -- 初始化表结构
     db.mapAssociations = db.mapAssociations or {}
     db.mapAssociations[mapID] = db.mapAssociations[mapID] or {}
+    db.mapAssociations[mapID].reputations = reputations
     
-    -- 设置声望列表
-    db.mapAssociations[mapID].reputations = factionIDs
-    
-    CF:LogInfo("设置地图 %d 的关联声望: %d 个", mapID, #factionIDs)
-    
+    CF:LogInfo("已设置地图 %d 的声望关联 (%d 个)", mapID, #reputations)
     return true
 end
 
@@ -512,11 +530,14 @@ end
 -- 启动自动更新
 function DM:StartAutoUpdate()
     if self.updateTimer then
+        CF:LogWarning("自动更新已经在运行")
         return
     end
     
     local db = CopperFeverDB
-    if not db or not db.settings or not db.settings.data or not db.settings.data.enableAutoUpdate then
+    if not db or not db.settings or not db.settings.data or 
+       not db.settings.data.enableAutoUpdate then
+        CF:LogInfo("自动更新未启用")
         return
     end
     
@@ -524,7 +545,10 @@ function DM:StartAutoUpdate()
     
     -- 创建定时器
     self.updateTimer = C_Timer.NewTicker(interval, function()
-        self:OnAutoUpdate()
+        local success, err = pcall(self.OnAutoUpdate, self)
+        if not success then
+            CF:LogError("自动更新错误: %s", tostring(err))
+        end
     end)
     
     CF:LogInfo("自动更新已启动，间隔: %d 秒", interval)
@@ -583,8 +607,8 @@ end
 function DM:RefreshData()
     CF:LogInfo("手动刷新数据...")
     
-    -- 清除所有缓存
-    self:ClearAllCaches()
+    -- 清除过期缓存（不清除全部）
+    self:ClearExpiredCache()
     
     -- 强制更新
     self:OnAutoUpdate()
@@ -602,6 +626,14 @@ function DM:ClearAllCaches()
     self.currencyCache = {}
     self.reputationCache = {}
     self.mapCache = {}
+    CF:LogInfo("所有数据缓存已清除")
+end
+
+-- 清除过期缓存
+function DM:ClearExpiredCache()
+    if CF.ClearExpiredCache then
+        CF:ClearExpiredCache()
+    end
 end
 
 -- ====================================================================
@@ -619,7 +651,8 @@ function DM:LoadUserAssociations()
     
     local count = 0
     for mapID, associations in pairs(db.mapAssociations) do
-        if associations.currencies or associations.reputations then
+        if type(associations) == "table" and 
+           (associations.currencies or associations.reputations) then
             count = count + 1
         end
     end
@@ -678,12 +711,14 @@ function DM:ExportMapAssociations()
     local db = CopperFeverDB
     
     if not db or not db.mapAssociations then
+        CF:LogWarning("没有可导出的地图关联数据")
         return nil
     end
     
     -- 序列化数据
     local exportData = CF:DeepCopy(db.mapAssociations)
     
+    CF:LogInfo("已导出 %d 个地图的关联数据", CF:TableSize(exportData))
     return exportData
 end
 
@@ -702,6 +737,7 @@ function DM:ImportMapAssociations(importData)
     
     -- 验证并导入数据
     db.mapAssociations = db.mapAssociations or {}
+    local importedCount = 0
     
     for mapID, associations in pairs(importData) do
         if type(mapID) == "number" and type(associations) == "table" then
@@ -709,9 +745,50 @@ function DM:ImportMapAssociations(importData)
                 currencies = self:ValidateCurrencyIDs(associations.currencies or {}),
                 reputations = self:ValidateReputationIDs(associations.reputations or {}),
             }
+            importedCount = importedCount + 1
         end
     end
     
-    CF:LogInfo("地图关联数据导入完成")
+    CF:LogInfo("地图关联数据导入完成 (%d 个地图)", importedCount)
     return true
 end
+
+-- ====================================================================
+-- 错误恢复机制
+-- ====================================================================
+
+-- 尝试恢复损坏的数据
+function DM:RecoverCorruptedData()
+    CF:LogWarning("尝试恢复损坏的数据...")
+    
+    local db = CopperFeverDB
+    if not db then
+        return false
+    end
+    
+    local recovered = false
+    
+    -- 检查并修复 settings
+    if not db.settings or type(db.settings) ~= "table" then
+        db.settings = CF:DeepCopy(CF.DEFAULTS)
+        recovered = true
+        CF:LogInfo("已恢复默认设置")
+    end
+    
+    -- 检查并修复 mapAssociations
+    if not db.mapAssociations or type(db.mapAssociations) ~= "table" then
+        db.mapAssociations = {}
+        recovered = true
+        CF:LogInfo("已重置地图关联")
+    end
+    
+    if recovered then
+        CF:ShowLocalizedWarning("WARNING_DATA_RECOVERED")
+    end
+    
+    return recovered
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

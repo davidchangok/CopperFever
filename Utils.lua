@@ -18,7 +18,10 @@ function CF:Debug(level, message, ...)
     if level > CF.CURRENT_DEBUG_LEVEL then return end
     
     -- 格式化消息
-    local formattedMsg = string.format(message, ...)
+    local success, formattedMsg = pcall(string.format, message, ...)
+    if not success then
+        formattedMsg = tostring(message) .. " [Format Error]"
+    end
     
     -- 添加级别前缀
     local prefix = ""
@@ -57,16 +60,24 @@ end
 -- 表操作工具
 -- ====================================================================
 
--- 深拷贝表
-function CF:DeepCopy(original)
+-- 深拷贝表（带循环引用检测）
+function CF:DeepCopy(original, seen)
     if type(original) ~= "table" then
         return original
     end
     
+    -- 初始化 seen 表以检测循环引用
+    seen = seen or {}
+    if seen[original] then
+        return seen[original]
+    end
+    
     local copy = {}
+    seen[original] = copy
+    
     for key, value in pairs(original) do
         if type(value) == "table" then
-            copy[key] = self:DeepCopy(value)
+            copy[key] = self:DeepCopy(value, seen)
         else
             copy[key] = value
         end
@@ -123,7 +134,7 @@ end
 
 -- 从表中移除值
 function CF:TableRemoveValue(tbl, value)
-    if type(tbl) ~= "table" then return end
+    if type(tbl) ~= "table" then return false end
     
     for k, v in pairs(tbl) do
         if v == value then
@@ -141,7 +152,7 @@ end
 -- 去除字符串首尾空白
 function CF:Trim(str)
     if type(str) ~= "string" then return "" end
-    return str:match("^%s*(.-)%s*$")
+    return str:match("^%s*(.-)%s*$") or ""
 end
 
 -- 分割字符串
@@ -168,6 +179,9 @@ end
 function CF:FormatMoney(amount)
     if type(amount) ~= "number" then return "0|cffeda55fc|r" end
     
+    amount = math.floor(amount)
+    if amount < 0 then amount = 0 end
+    
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
     local copper = amount % 100
@@ -193,7 +207,7 @@ function CF:FormatNumber(number)
     elseif number >= 1000 then
         return string.format("%.1fK", number / 1000)
     else
-        return tostring(number)
+        return tostring(math.floor(number))
     end
 end
 
@@ -209,6 +223,9 @@ end
 -- 格式化时间显示
 function CF:FormatTime(seconds)
     if type(seconds) ~= "number" then return "0s" end
+    
+    seconds = math.floor(seconds)
+    if seconds < 0 then seconds = 0 end
     
     local days = math.floor(seconds / 86400)
     local hours = math.floor((seconds % 86400) / 3600)
@@ -235,7 +252,7 @@ CF.ThrottleTimers = CF.ThrottleTimers or {}
 
 -- 节流函数（限制函数调用频率）
 function CF:Throttle(key, delay, func, ...)
-    if type(key) ~= "string" or type(func) ~= "function" then return end
+    if type(key) ~= "string" or type(func) ~= "function" then return false end
     
     delay = delay or CF.PERFORMANCE.THROTTLE_DELAY
     local now = GetTime()
@@ -247,7 +264,13 @@ function CF:Throttle(key, delay, func, ...)
     
     -- 执行函数并记录时间
     self.ThrottleTimers[key] = now
-    func(...)
+    
+    -- 安全调用函数
+    local success, err = pcall(func, ...)
+    if not success then
+        self:LogError("Throttle function error: %s", tostring(err))
+    end
+    
     return true
 end
 
@@ -268,7 +291,10 @@ function CF:Debounce(key, delay, func, ...)
     -- 创建新计时器
     local args = {...}
     self.DebounceTimers[key] = C_Timer.NewTimer(delay, function()
-        func(unpack(args))
+        local success, err = pcall(func, unpack(args))
+        if not success then
+            CF:LogError("Debounce function error: %s", tostring(err))
+        end
         self.DebounceTimers[key] = nil
     end)
 end
@@ -279,12 +305,22 @@ end
 
 -- 缓存表
 CF.Cache = CF.Cache or {}
+CF.CacheSize = 0
 
 -- 设置缓存
 function CF:SetCache(key, value, duration)
     if type(key) ~= "string" then return end
     
+    -- 检查缓存大小限制
+    if not self.Cache[key] and self.CacheSize >= CF.PERFORMANCE.MAX_CACHE_SIZE then
+        self:ClearOldestCache()
+    end
+    
     duration = duration or CF.PERFORMANCE.CACHE_DURATION
+    
+    if not self.Cache[key] then
+        self.CacheSize = self.CacheSize + 1
+    end
     
     self.Cache[key] = {
         value = value,
@@ -304,6 +340,7 @@ function CF:GetCache(key)
     local now = GetTime()
     if (now - cached.timestamp) > cached.duration then
         self.Cache[key] = nil
+        self.CacheSize = self.CacheSize - 1
         return nil
     end
     
@@ -313,9 +350,48 @@ end
 -- 清除缓存
 function CF:ClearCache(key)
     if key then
-        self.Cache[key] = nil
+        if self.Cache[key] then
+            self.Cache[key] = nil
+            self.CacheSize = self.CacheSize - 1
+        end
     else
         self.Cache = {}
+        self.CacheSize = 0
+    end
+end
+
+-- 清除最旧的缓存条目
+function CF:ClearOldestCache()
+    local oldestKey = nil
+    local oldestTime = math.huge
+    
+    for key, data in pairs(self.Cache) do
+        if data.timestamp < oldestTime then
+            oldestTime = data.timestamp
+            oldestKey = key
+        end
+    end
+    
+    if oldestKey then
+        self:ClearCache(oldestKey)
+    end
+end
+
+-- 清除过期缓存
+function CF:ClearExpiredCache()
+    local now = GetTime()
+    local cleared = 0
+    
+    for key, data in pairs(self.Cache) do
+        if (now - data.timestamp) > data.duration then
+            self.Cache[key] = nil
+            self.CacheSize = self.CacheSize - 1
+            cleared = cleared + 1
+        end
+    end
+    
+    if cleared > 0 then
+        self:LogInfo("Cleared %d expired cache entries", cleared)
     end
 end
 
@@ -323,26 +399,26 @@ end
 -- API安全调用工具
 -- ====================================================================
 
--- 安全调用API（带错误处理）
+-- 安全调用本地函数（主要用于自定义事件回调）
 function CF:SafeCall(func, ...)
     if type(func) ~= "function" then
         self:LogError("SafeCall: 参数不是函数")
-        return nil, CF.ERROR_CODES.INVALID_PARAMETER
+        return false
     end
     
     local success, result = pcall(func, ...)
     
     if not success then
-        self:LogError("API调用失败: %s", tostring(result))
-        return nil, CF.ERROR_CODES.API_ERROR
+        self:LogError("SafeCall 执行失败: %s", tostring(result))
+        return false
     end
     
-    return result, CF.ERROR_CODES.SUCCESS
+    return true, result
 end
 
 -- 安全获取货币信息（避免保密数据）
 function CF:SafeGetCurrencyInfo(currencyID)
-    if type(currencyID) ~= "number" then
+    if type(currencyID) ~= "number" or currencyID <= 0 then
         return nil, CF.ERROR_CODES.INVALID_PARAMETER
     end
     
@@ -353,14 +429,14 @@ function CF:SafeGetCurrencyInfo(currencyID)
         return cached, CF.ERROR_CODES.SUCCESS
     end
     
-    -- 调用API
-    local info = self:SafeCall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+    -- 通过安全审计模块调用 API
+    local success, info = CF.Security:AuditAPICall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
     
-    if not info then
+    if not success or not info then
         return nil, CF.ERROR_CODES.DATA_NOT_FOUND
     end
     
-    -- 过滤保密数据
+    -- 过滤保密数据，只保留安全字段
     local safeInfo = {
         name = info.name,
         quantity = info.quantity,
@@ -369,9 +445,10 @@ function CF:SafeGetCurrencyInfo(currencyID)
         canEarnPerWeek = info.canEarnPerWeek,
         quantityEarnedThisWeek = info.quantityEarnedThisWeek,
         discovered = info.discovered,
+        useTotalEarnedForMaxQty = info.useTotalEarnedForMaxQty,
     }
     
-    -- 缓存结果
+    -- 缓存结果（短时间，货币数量会变化）
     self:SetCache(cacheKey, safeInfo, 30)
     
     return safeInfo, CF.ERROR_CODES.SUCCESS
@@ -379,7 +456,7 @@ end
 
 -- 安全获取地图信息
 function CF:SafeGetMapInfo(mapID)
-    if type(mapID) ~= "number" then
+    if type(mapID) ~= "number" or mapID <= 0 then
         return nil, CF.ERROR_CODES.INVALID_PARAMETER
     end
     
@@ -390,10 +467,10 @@ function CF:SafeGetMapInfo(mapID)
         return cached, CF.ERROR_CODES.SUCCESS
     end
     
-    -- 调用API
-    local info = self:SafeCall(C_Map.GetMapInfo, mapID)
+    -- 通过安全审计模块调用 API
+    local success, info = CF.Security:AuditAPICall(C_Map.GetMapInfo, mapID)
     
-    if not info then
+    if not success or not info then
         return nil, CF.ERROR_CODES.DATA_NOT_FOUND
     end
     
@@ -405,7 +482,7 @@ end
 
 -- 安全获取声望信息
 function CF:SafeGetFactionData(factionID)
-    if type(factionID) ~= "number" then
+    if type(factionID) ~= "number" or factionID <= 0 then
         return nil, CF.ERROR_CODES.INVALID_PARAMETER
     end
     
@@ -416,10 +493,10 @@ function CF:SafeGetFactionData(factionID)
         return cached, CF.ERROR_CODES.SUCCESS
     end
     
-    -- 调用API
-    local data = self:SafeCall(C_Reputation.GetFactionDataByID, factionID)
+    -- 通过安全审计模块调用 API
+    local success, data = CF.Security:AuditAPICall(C_Reputation.GetFactionDataByID, factionID)
     
-    if not data then
+    if not success or not data then
         return nil, CF.ERROR_CODES.DATA_NOT_FOUND
     end
     
@@ -509,6 +586,7 @@ function CF:Lerp(a, b, t)
     if type(a) ~= "number" or type(b) ~= "number" or type(t) ~= "number" then
         return a
     end
+    t = self:Clamp(t, 0, 1)
     return a + (b - a) * t
 end
 
@@ -516,31 +594,37 @@ end
 -- 验证工具
 -- ====================================================================
 
--- 验证货币ID
+-- 验证货币ID（实际调用API检查）
 function CF:IsValidCurrencyID(currencyID)
-    if type(currencyID) ~= "number" then return false end
-    if currencyID <= 0 then return false end
+    if type(currencyID) ~= "number" or currencyID <= 0 then 
+        return false 
+    end
     
-    local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-    return info ~= nil
+    -- 使用安全API调用
+    local info, errorCode = self:SafeGetCurrencyInfo(currencyID)
+    return errorCode == CF.ERROR_CODES.SUCCESS and info ~= nil
 end
 
--- 验证地图ID
+-- 验证地图ID（实际调用API检查）
 function CF:IsValidMapID(mapID)
-    if type(mapID) ~= "number" then return false end
-    if mapID <= 0 then return false end
+    if type(mapID) ~= "number" or mapID <= 0 then 
+        return false 
+    end
     
-    local info = C_Map.GetMapInfo(mapID)
-    return info ~= nil
+    -- 使用安全API调用
+    local info, errorCode = self:SafeGetMapInfo(mapID)
+    return errorCode == CF.ERROR_CODES.SUCCESS and info ~= nil
 end
 
--- 验证声望ID
+-- 验证声望ID（实际调用API检查）
 function CF:IsValidFactionID(factionID)
-    if type(factionID) ~= "number" then return false end
-    if factionID <= 0 then return false end
+    if type(factionID) ~= "number" or factionID <= 0 then 
+        return false 
+    end
     
-    local data = C_Reputation.GetFactionDataByID(factionID)
-    return data ~= nil
+    -- 使用安全API调用
+    local data, errorCode = self:SafeGetFactionData(factionID)
+    return errorCode == CF.ERROR_CODES.SUCCESS and data ~= nil
 end
 
 -- ====================================================================
@@ -566,3 +650,7 @@ function CF:CompareVersions(v1, v2)
     
     return 0
 end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

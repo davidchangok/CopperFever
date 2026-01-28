@@ -70,6 +70,8 @@ CF.DEFAULTS = {
         showIcons = true,
         showTooltips = true,
         autoHide = false,           -- 不相关区域自动隐藏
+        hideInCombat = false,       -- 战斗中隐藏
+        showZoneMessages = false,   -- 显示区域切换消息
     },
     
     -- 数据配置
@@ -200,6 +202,7 @@ CF.PERFORMANCE = {
     THROTTLE_DELAY = 0.5,           -- 节流延迟（秒）
     CACHE_DURATION = 300,           -- 缓存持续时间（秒）
     MAX_BATCH_SIZE = 50,            -- 最大批处理大小
+    MAX_CACHE_SIZE = 1000,          -- 最大缓存条目数
 }
 
 -- ====================================================================
@@ -238,27 +241,51 @@ CF.TOOLTIP_ANCHORS = {
 -- ====================================================================
 -- 辅助函数：颜色转换
 -- ====================================================================
+
+-- 验证颜色表
+local function ValidateColor(color)
+    if type(color) ~= "table" then return false end
+    if type(color.r) ~= "number" or color.r < 0 or color.r > 1 then return false end
+    if type(color.g) ~= "number" or color.g < 0 or color.g > 1 then return false end
+    if type(color.b) ~= "number" or color.b < 0 or color.b > 1 then return false end
+    return true
+end
+
+-- 颜色转十六进制
 function CF:ColorToHex(color)
-    if not color then return "FFFFFF" end
+    if not ValidateColor(color) then return "FFFFFF" end
     local r = math.floor((color.r or 1) * 255)
     local g = math.floor((color.g or 1) * 255)
     local b = math.floor((color.b or 1) * 255)
     return string.format("%02X%02X%02X", r, g, b)
 end
 
+-- 十六进制转颜色
 function CF:HexToColor(hex)
-    if not hex or #hex ~= 6 then return {r = 1, g = 1, b = 1} end
-    local r = tonumber(hex:sub(1, 2), 16) / 255
-    local g = tonumber(hex:sub(3, 4), 16) / 255
-    local b = tonumber(hex:sub(5, 6), 16) / 255
-    return {r = r, g = g, b = b}
+    if type(hex) ~= "string" or #hex ~= 6 then 
+        return {r = 1, g = 1, b = 1} 
+    end
+    
+    local r = tonumber(hex:sub(1, 2), 16)
+    local g = tonumber(hex:sub(3, 4), 16)
+    local b = tonumber(hex:sub(5, 6), 16)
+    
+    if not r or not g or not b then
+        return {r = 1, g = 1, b = 1}
+    end
+    
+    return {
+        r = r / 255,
+        g = g / 255,
+        b = b / 255
+    }
 end
 
 -- ====================================================================
 -- 辅助函数：颜色代码生成
 -- ====================================================================
 function CF:GetColorCode(color)
-    if not color then return "|cFFFFFFFF" end
+    if not ValidateColor(color) then return "|cFFFFFFFF" end
     return string.format("|cFF%s", self:ColorToHex(color))
 end
 
@@ -275,3 +302,33 @@ function CF:GetPlayerFaction()
         return CF.FACTIONS.NEUTRAL
     end
 end
+
+-- ====================================================================
+-- 输入验证辅助函数
+-- ====================================================================
+
+-- 验证货币ID
+function CF:IsValidCurrencyIDValue(currencyID)
+    return type(currencyID) == "number" and currencyID > 0
+end
+
+-- 验证地图ID
+function CF:IsValidMapIDValue(mapID)
+    return type(mapID) == "number" and mapID > 0
+end
+
+-- 验证声望ID
+function CF:IsValidFactionIDValue(factionID)
+    return type(factionID) == "number" and factionID > 0
+end
+
+-- 验证扩展版本ID
+function CF:IsValidExpansionID(expansionID)
+    return type(expansionID) == "number" and 
+           expansionID >= CF.EXPANSIONS.CLASSIC and 
+           expansionID <= CF.EXPANSIONS.TWW
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

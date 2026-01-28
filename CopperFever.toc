@@ -12,23 +12,24 @@
 ## X-Category: Currency & Resources
 ## X-Localizations: enUS, zhCN
 
-# Core files
+# Core files (load order is critical)
 Constants.lua
+Utils\Security.lua
 Utils.lua
 
-# Localization
+# Localization (must load before data layer)
 Locales\Locale.lua
 Locales\enUS.lua
 Locales\zhCN.lua
 
-# Data layer
+# Data layer (must load before UI)
 Data\StaticData.lua
 Data\DataManager.lua
 Data\ATTIntegration.lua
 
-# UI layer
+# UI layer (must load before Core)
 UI\MainFrame.lua
 UI\ConfigPanel.lua
 
-# Core initialization (must be last)
+# Core initialization (must be last - initializes event system)
 Core.lua

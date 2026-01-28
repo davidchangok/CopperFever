@@ -31,30 +31,67 @@ setmetatable(L, mt)
 -- 设置当前语言环境
 CF.currentLocale = GetLocale()
 
+-- 回退语言环境（默认英文）
+CF.fallbackLocale = "enUS"
+
+-- 已加载的语言环境
+CF.loadedLocales = {}
+
 -- 注册本地化字符串
 function CF:RegisterLocale(locale, strings)
     if type(locale) ~= "string" or type(strings) ~= "table" then
         self:LogError("RegisterLocale: 无效参数")
-        return
+        return false
     end
+    
+    -- 记录已加载的语言
+    self.loadedLocales[locale] = true
     
     -- 如果是当前语言环境，合并字符串
     if locale == self.currentLocale then
         for key, value in pairs(strings) do
-            L[key] = value
+            if type(key) == "string" and type(value) == "string" then
+                L[key] = value
+            end
         end
+        self:LogInfo("已加载 %s 本地化 (%d 条)", locale, self:TableSize(strings))
+        return true
     end
+    
+    -- 如果是回退语言，保存到备用表
+    if locale == self.fallbackLocale then
+        CF.fallbackStrings = CF.fallbackStrings or {}
+        for key, value in pairs(strings) do
+            if type(key) == "string" and type(value) == "string" then
+                CF.fallbackStrings[key] = value
+            end
+        end
+        return true
+    end
+    
+    return false
 end
 
--- 获取本地化字符串
+-- 获取本地化字符串（带回退机制）
 function CF:GetLocalizedString(key, ...)
     if type(key) ~= "string" then return "" end
     
     local str = L[key]
     
+    -- 如果当前语言没有，尝试使用回退语言
+    if str == key and self.fallbackStrings then
+        str = self.fallbackStrings[key] or key
+    end
+    
     -- 如果有参数，进行格式化
     if ... then
-        str = string.format(str, ...)
+        local success, result = pcall(string.format, str, ...)
+        if success then
+            str = result
+        else
+            -- 格式化失败，记录错误但返回原始字符串
+            self:LogError("GetLocalizedString: 格式化失败 [%s]", key)
+        end
     end
     
     return str
@@ -100,6 +137,10 @@ end
 
 -- 获取扩展版本本地化名称
 function CF:GetExpansionLocalizedName(expansion)
+    if type(expansion) ~= "number" then
+        return "Unknown Expansion"
+    end
+    
     local key = "EXPANSION_" .. expansion
     return L[key] or ("Unknown Expansion " .. expansion)
 end
@@ -164,11 +205,11 @@ function CF:FormatLocalizedNumber(number)
     -- 中文使用万为单位
     if self:IsChineseClient() then
         if number >= 100000000 then
-            return string.format("%.2f%s", number / 100000000, L["NUMBER_YI"])
+            return string.format("%.2f%s", number / 100000000, L["NUMBER_YI"] or "亿")
         elseif number >= 10000 then
-            return string.format("%.1f%s", number / 10000, L["NUMBER_WAN"])
+            return string.format("%.1f%s", number / 10000, L["NUMBER_WAN"] or "万")
         else
-            return tostring(number)
+            return tostring(math.floor(number))
         end
     else
         -- 英文使用K、M为单位
@@ -177,7 +218,7 @@ function CF:FormatLocalizedNumber(number)
         elseif number >= 1000 then
             return string.format("%.1fK", number / 1000)
         else
-            return tostring(number)
+            return tostring(math.floor(number))
         end
     end
 end
@@ -194,7 +235,12 @@ end
 
 -- 格式化时间（考虑本地化）
 function CF:FormatLocalizedTime(seconds)
-    if type(seconds) ~= "number" then return "0" .. L["TIME_SECOND"] end
+    if type(seconds) ~= "number" then 
+        return "0" .. (L["TIME_SECOND"] or "s")
+    end
+    
+    seconds = math.floor(seconds)
+    if seconds < 0 then seconds = 0 end
     
     local days = math.floor(seconds / 86400)
     local hours = math.floor((seconds % 86400) / 3600)
@@ -202,13 +248,19 @@ function CF:FormatLocalizedTime(seconds)
     local secs = seconds % 60
     
     if days > 0 then
-        return string.format("%d%s %d%s", days, L["TIME_DAY"], hours, L["TIME_HOUR"])
+        return string.format("%d%s %d%s", 
+            days, L["TIME_DAY"] or "d", 
+            hours, L["TIME_HOUR"] or "h")
     elseif hours > 0 then
-        return string.format("%d%s %d%s", hours, L["TIME_HOUR"], minutes, L["TIME_MINUTE"])
+        return string.format("%d%s %d%s", 
+            hours, L["TIME_HOUR"] or "h", 
+            minutes, L["TIME_MINUTE"] or "m")
     elseif minutes > 0 then
-        return string.format("%d%s %d%s", minutes, L["TIME_MINUTE"], secs, L["TIME_SECOND"])
+        return string.format("%d%s %d%s", 
+            minutes, L["TIME_MINUTE"] or "m", 
+            secs, L["TIME_SECOND"] or "s")
     else
-        return string.format("%d%s", secs, L["TIME_SECOND"])
+        return string.format("%d%s", secs, L["TIME_SECOND"] or "s")
     end
 end
 
@@ -232,7 +284,7 @@ function CF:AddLocalizedTooltipLine(tooltip, key, color, ...)
     
     local text = self:L(key, ...)
     
-    if color then
+    if color and type(color) == "table" then
         tooltip:AddLine(text, color.r, color.g, color.b)
     else
         tooltip:AddLine(text)
@@ -241,12 +293,15 @@ end
 
 -- 添加本地化的工具提示双列行
 function CF:AddLocalizedTooltipDoubleLine(tooltip, leftKey, rightKey, leftColor, rightColor, ...)
-    if not tooltip or type(leftKey) ~= "string" or type(rightKey) ~= "string" then return end
+    if not tooltip or type(leftKey) ~= "string" or type(rightKey) ~= "string" then 
+        return 
+    end
     
     local leftText = self:L(leftKey, ...)
     local rightText = self:L(rightKey, ...)
     
-    if leftColor and rightColor then
+    if leftColor and rightColor and 
+       type(leftColor) == "table" and type(rightColor) == "table" then
         tooltip:AddDoubleLine(leftText, rightText, 
             leftColor.r, leftColor.g, leftColor.b,
             rightColor.r, rightColor.g, rightColor.b)
@@ -287,16 +342,14 @@ function CF:ShowLocalizedSuccess(key, ...)
 end
 
 -- ====================================================================
--- 默认回退机制
+-- 回退机制设置
 -- ====================================================================
-
--- 如果没有找到翻译，使用英文作为回退
-CF.fallbackLocale = "enUS"
 
 -- 设置回退语言
 function CF:SetFallbackLocale(locale)
     if type(locale) == "string" then
         self.fallbackLocale = locale
+        self:LogInfo("设置回退语言环境: %s", locale)
     end
 end
 
@@ -356,6 +409,48 @@ function CF:GetLocaleDisplayName(locale)
 end
 
 -- ====================================================================
+-- 本地化完整性检查
+-- ====================================================================
+
+-- 检查缺失的本地化字符串
+function CF:CheckMissingLocalizations()
+    if not self.fallbackStrings then
+        self:LogWarning("回退字符串表未加载")
+        return
+    end
+    
+    local missing = {}
+    local currentCount = 0
+    local fallbackCount = 0
+    
+    -- 统计回退语言的字符串数量
+    for key, _ in pairs(self.fallbackStrings) do
+        fallbackCount = fallbackCount + 1
+        -- 检查当前语言是否有这个键
+        if L[key] == key then
+            table.insert(missing, key)
+        else
+            currentCount = currentCount + 1
+        end
+    end
+    
+    if #missing > 0 then
+        self:LogWarning("当前语言环境 (%s) 缺少 %d 条本地化字符串:", 
+                       self.currentLocale, #missing)
+        for i = 1, math.min(10, #missing) do
+            self:LogWarning("  - %s", missing[i])
+        end
+        if #missing > 10 then
+            self:LogWarning("  ... 还有 %d 条", #missing - 10)
+        end
+    end
+    
+    self:LogInfo("本地化覆盖率: %d/%d (%.1f%%)", 
+                currentCount, fallbackCount, 
+                fallbackCount > 0 and (currentCount / fallbackCount * 100) or 0)
+end
+
+-- ====================================================================
 -- 调试和测试功能
 -- ====================================================================
 
@@ -363,25 +458,53 @@ end
 function CF:ListLocalizedStrings()
     self:LogInfo("已注册的本地化字符串:")
     local count = 0
+    local keys = {}
+    
     for key, value in pairs(L) do
         if type(value) == "string" then
-            self:LogInfo("  [%s] = %s", key, value)
+            table.insert(keys, key)
             count = count + 1
         end
     end
+    
+    -- 排序后输出
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+        self:LogInfo("  [%s] = %s", key, L[key])
+    end
+    
     self:LogInfo("总计: %d 条", count)
 end
 
--- 查找缺失的本地化字符串
-function CF:FindMissingLocalizations(referenceLocale)
-    referenceLocale = referenceLocale or "enUS"
-    
-    if self.currentLocale == referenceLocale then
-        self:LogWarning("当前语言环境与参考语言环境相同")
-        return
+-- 测试本地化字符串格式化
+function CF:TestLocalizationFormat(key, ...)
+    local success, result = pcall(self.L, self, key, ...)
+    if success then
+        self:LogInfo("格式化成功: [%s] -> %s", key, result)
+        return true
+    else
+        self:LogError("格式化失败: [%s] -> %s", key, tostring(result))
+        return false
     end
-    
-    self:LogInfo("查找缺失的本地化字符串（参考: %s）", referenceLocale)
-    -- 这里可以添加实际的比对逻辑
-    -- 需要加载参考语言的字符串表进行比较
 end
+
+-- ====================================================================
+-- 初始化本地化系统
+-- ====================================================================
+
+function CF:InitializeLocalization()
+    self:LogInfo("初始化本地化系统...")
+    self:LogInfo("当前语言环境: %s (%s)", 
+                self.currentLocale, 
+                self:GetLocaleDisplayName(self.currentLocale))
+    self:LogInfo("回退语言环境: %s", self.fallbackLocale)
+    
+    -- 检查当前语言是否受支持
+    if not self:IsLocaleSupported(self.currentLocale) then
+        self:LogWarning("当前语言环境不在支持列表中，将使用回退语言")
+    end
+end
+
+-- ====================================================================
+-- 结束标记
+-- ====================================================================

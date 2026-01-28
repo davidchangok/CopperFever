@@ -350,6 +350,29 @@ L["ATT_IMPORT_STARTED"] = "Starting import from ALL THE THINGS..."
 L["ATT_IMPORT_COMPLETE"] = "Import from ALL THE THINGS complete!"
 
 -- ====================================================================
+-- 核心和命令文本
+-- ====================================================================
+L["CORE_INIT_LINE1"] = "==========================================="
+L["CORE_INIT_LINE2"] = "  Copper Fever v%s"
+L["CORE_INIT_LINE3"] = "  Author: David W Zhang"
+L["CORE_INIT_LINE4"] = "  Type /cf help for commands"
+L["CORE_INIT_LINE5"] = "==========================================="
+L["CMD_DEBUG_ENABLED"] = "Debug mode enabled"
+L["CMD_DEBUG_DISABLED"] = "Debug mode disabled"
+L["CMD_HELP_HEADER"] = "=== Copper Fever Commands ==="
+L["CMD_HELP_TOGGLE"] = "/cf - Toggle main window"
+L["CMD_HELP_CONFIG"] = "/cf config - Open settings"
+L["CMD_HELP_REFRESH"] = "/cf refresh - Refresh data"
+L["CMD_HELP_RESET"] = "/cf reset - Reset window position"
+L["CMD_HELP_LOCK"] = "/cf lock/unlock - Lock/unlock window"
+L["CMD_HELP_ATT"] = "/cf att - Import from ALL THE THINGS"
+L["CMD_HELP_DEBUG"] = "/cf debug - Toggle debug mode"
+L["CMD_HELP_VERSION"] = "/cf version - Show version info"
+L["CMD_HELP_HELP"] = "/cf help - Show this help"
+L["CMD_INVALID_PARAM"] = "Invalid command. Type '/cf help' for available commands."
+L["CMD_BUILD"] = "Build"
+
+-- ====================================================================
 -- 注册英文本地化
 -- ====================================================================
 CF:RegisterLocale("enUS", L)

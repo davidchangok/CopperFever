@@ -349,6 +349,29 @@ L["ATT_IMPORT_STARTED"] = "开始从 ALL THE THINGS 导入..."
 L["ATT_IMPORT_COMPLETE"] = "从 ALL THE THINGS 导入完成！"
 
 -- ====================================================================
+-- 核心和命令文本
+-- ====================================================================
+L["CORE_INIT_LINE1"] = "==========================================="
+L["CORE_INIT_LINE2"] = "  铜币狂热 v%s"
+L["CORE_INIT_LINE3"] = "  作者: David W Zhang"
+L["CORE_INIT_LINE4"] = "  输入 /cf help 查看命令"
+L["CORE_INIT_LINE5"] = "==========================================="
+L["CMD_DEBUG_ENABLED"] = "调试模式已启用"
+L["CMD_DEBUG_DISABLED"] = "调试模式已禁用"
+L["CMD_HELP_HEADER"] = "=== 铜币狂热 命令 ==="
+L["CMD_HELP_TOGGLE"] = "/cf - 切换主窗口"
+L["CMD_HELP_CONFIG"] = "/cf config - 打开设置"
+L["CMD_HELP_REFRESH"] = "/cf refresh - 刷新数据"
+L["CMD_HELP_RESET"] = "/cf reset - 重置窗口位置"
+L["CMD_HELP_LOCK"] = "/cf lock/unlock - 锁定/解锁窗口"
+L["CMD_HELP_ATT"] = "/cf att - 从 ALL THE THINGS 导入"
+L["CMD_HELP_DEBUG"] = "/cf debug - 切换调试模式"
+L["CMD_HELP_VERSION"] = "/cf version - 显示版本信息"
+L["CMD_HELP_HELP"] = "/cf help - 显示此帮助"
+L["CMD_INVALID_PARAM"] = "无效命令。输入 '/cf help' 查看可用命令。"
+L["CMD_BUILD"] = "构建版本"
+
+-- ====================================================================
 -- 注册简体中文本地化
 -- ====================================================================
 CF:RegisterLocale("zhCN", L)
