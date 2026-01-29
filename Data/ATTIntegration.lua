@@ -249,7 +249,6 @@ function ATT:ImportAllData()
     
     CF:LogInfo("开始从 ALL THE THINGS 导入所有数据...")
     CF:ShowLocalizedMessage("MSG_DATA_IMPORTING")
-    
     local startTime = GetTime()
     local totalImported = 0
     
@@ -262,7 +261,8 @@ function ATT:ImportAllData()
         CF:LogError("✗ 货币导入失败: %s", tostring(currencies))
     end
     
-    -- 导入声望
+    -- 导入声望 (修复: 添加 local 声明)
+    local reputations
     success, reputations = pcall(self.ImportReputations, self)
     if success and reputations then
         totalImported = totalImported + #reputations
@@ -271,7 +271,8 @@ function ATT:ImportAllData()
         CF:LogError("✗ 声望导入失败: %s", tostring(reputations))
     end
     
-    -- 导入地图数据
+    -- 导入地图数据 (修复: 添加 local 声明)
+    local maps
     success, maps = pcall(self.ImportMapData, self)
     if success and maps then
         totalImported = totalImported + CF:TableSize(maps)
@@ -280,7 +281,8 @@ function ATT:ImportAllData()
         CF:LogError("✗ 地图导入失败: %s", tostring(maps))
     end
     
-    -- 导入地图-货币关联
+    -- 导入地图-货币关联 (修复: 添加 local 声明)
+    local mapCurrencies
     success, mapCurrencies = pcall(self.ImportMapCurrencyAssociations, self)
     if success and mapCurrencies then
         -- 合并到数据库
@@ -296,7 +298,8 @@ function ATT:ImportAllData()
         CF:LogError("✗ 地图-货币关联导入失败: %s", tostring(mapCurrencies))
     end
     
-    -- 导入地图-声望关联
+    -- 导入地图-声望关联 (修复: 添加 local 声明)
+    local mapReputations
     success, mapReputations = pcall(self.ImportMapReputationAssociations, self)
     if success and mapReputations then
         -- 合并到数据库
@@ -491,7 +494,7 @@ function ATT:CheckCompatibility()
     -- 检查 ATT 版本是否兼容
     if self.version then
         -- 这里可以添加版本检查逻辑
-        -- 例如：检查最低版本要求
+        -- 例如:检查最低版本要求
         CF:LogInfo("ATT 版本 %s 兼容性检查通过", tostring(self.version))
     end
     

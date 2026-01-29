@@ -683,7 +683,19 @@ function MF:ShowContextMenu()
         },
     }
     
-    EasyMenu(menuList, menu, "cursor", 0, 0, "MENU")
+    -- 使用新的 UIDropDownMenu API (WoW 11.0+ 兼容)
+    local function InitializeMenu(self, level)
+        for _, item in ipairs(menuList) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = item.text
+            info.func = item.func
+            info.notCheckable = item.notCheckable
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end
+    
+    UIDropDownMenu_Initialize(menu, InitializeMenu, "MENU")
+    ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0)
 end
 
 -- ====================================================================
