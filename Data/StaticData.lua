@@ -334,6 +334,129 @@ SD.MapReputationAssociations = {
 }
 
 -- ====================================================================
+-- 地图与版本的映射表（用于自动确定地图所属版本）
+-- ====================================================================
+SD.MapExpansions = {
+    -- 经典旧世 (0)
+    [1415] = 0,  -- Eastern Kingdoms
+    [1416] = 0,  -- Kalimdor
+    [1453] = 0,  -- Stormwind City
+    [1454] = 0,  -- Orgrimmar
+    [1455] = 0,  -- Ironforge
+    [1456] = 0,  -- Thunder Bluff
+    [1457] = 0,  -- Darnassus
+    [1458] = 0,  -- Undercity
+    
+    -- 燃烧的远征 (1)
+    [1943] = 1,  -- Outland
+    [1946] = 1,  -- Hellfire Peninsula
+    [1947] = 1,  -- Zangarmarsh
+    [1948] = 1,  -- Terokkar Forest
+    [1949] = 1,  -- Nagrand
+    [1950] = 1,  -- Blade's Edge Mountains
+    [1951] = 1,  -- Netherstorm
+    [1952] = 1,  -- Shadowmoon Valley
+    
+    -- 巫妖王之怒 (2)
+    [113] = 2,   -- Northrend
+    [114] = 2,   -- Borean Tundra
+    [115] = 2,   -- Howling Fjord
+    [116] = 2,   -- Dragonblight
+    [117] = 2,   -- Grizzly Hills
+    [118] = 2,   -- Zul'Drak
+    [119] = 2,   -- Sholazar Basin
+    [120] = 2,   -- The Storm Peaks
+    [121] = 2,   -- Icecrown
+    [123] = 2,   -- Wintergrasp
+    [127] = 2,   -- Crystalsong Forest
+    
+    -- 大地的裂变 (3)
+    [207] = 3,   -- Deepholm
+    [241] = 3,   -- Twilight Highlands
+    [249] = 3,   -- Uldum
+    [244] = 3,   -- Tol Barad
+    [245] = 3,   -- Tol Barad Peninsula
+    [338] = 3,   -- Molten Front
+    
+    -- 熊猫人之谜 (4)
+    [424] = 4,   -- Pandaria
+    [371] = 4,   -- The Jade Forest
+    [376] = 4,   -- Valley of the Four Winds
+    [388] = 4,   -- Kun-Lai Summit
+    [379] = 4,   -- Krasarang Wilds
+    [390] = 4,   -- Dread Wastes
+    [418] = 4,   -- Townlong Steppes
+    [422] = 4,   -- Vale of Eternal Blossoms
+    [504] = 4,   -- Isle of Thunder
+    [554] = 4,   -- Timeless Isle
+    
+    -- 德拉诺之王 (5)
+    [572] = 5,   -- Draenor
+    [525] = 5,   -- Frostfire Ridge
+    [535] = 5,   -- Shadowmoon Valley (Draenor)
+    [534] = 5,   -- Tanaan Jungle
+    [539] = 5,   -- Shadowmoon Valley
+    [542] = 5,   -- Spires of Arak
+    [543] = 5,   -- Gorgrond
+    [550] = 5,   -- Nagrand (Draenor)
+    
+    -- 军团再临 (6)
+    [619] = 6,   -- Broken Isles
+    [627] = 6,   -- Dalaran (Legion)
+    [630] = 6,   -- Azsuna
+    [634] = 6,   -- Stormheim
+    [641] = 6,   -- Val'sharah
+    [646] = 6,   -- Broken Shore
+    [650] = 6,   -- Highmountain
+    [680] = 6,   -- Suramar
+    [830] = 6,   -- Krokuun
+    [882] = 6,   -- Mac'Aree
+    [885] = 6,   -- Antoran Wastes
+    
+    -- 争霸艾泽拉斯 (7)
+    [875] = 7,   -- Zandalar
+    [876] = 7,   -- Kul Tiras
+    [862] = 7,   -- Zuldazar
+    [863] = 7,   -- Nazmir
+    [864] = 7,   -- Vol'dun
+    [895] = 7,   -- Tiragarde Sound
+    [896] = 7,   -- Drustvar
+    [942] = 7,   -- Stormsong Valley
+    [1355] = 7,  -- Nazjatar
+    [1462] = 7,  -- Mechagon
+    [1530] = 7,  -- Vale of Eternal Blossoms (BfA)
+    [1527] = 7,  -- Uldum (BfA)
+    
+    -- 暗影国度 (8)
+    [1550] = 8,  -- The Shadowlands
+    [1525] = 8,  -- Revendreth
+    [1533] = 8,  -- Bastion
+    [1536] = 8,  -- Maldraxxus
+    [1565] = 8,  -- Ardenweald
+    [1543] = 8,  -- The Maw
+    [1961] = 8,  -- Korthia
+    [1970] = 8,  -- Zereth Mortis
+    
+    -- 巨龙时代 (9)
+    [1978] = 9,  -- Dragon Isles
+    [2022] = 9,  -- The Waking Shores
+    [2023] = 9,  -- Ohn'ahran Plains
+    [2024] = 9,  -- The Azure Span
+    [2025] = 9,  -- Thaldraszus
+    [2026] = 9,  -- The Forbidden Reach
+    [2112] = 9,  -- Valdrakken
+    [2133] = 9,  -- Zaralek Cavern
+    [2200] = 9,  -- Emerald Dream
+    
+    -- 地心之战 (10)
+    [2248] = 10, -- Isle of Dorn
+    [2214] = 10, -- The Ringing Deeps
+    [2215] = 10, -- Hallowfall
+    [2255] = 10, -- Azj-Kahet
+    [2339] = 10, -- Dornogal
+}
+
+-- ====================================================================
 -- 辅助函数：获取货币信息
 -- ====================================================================
 function SD:GetCurrencyData(currencyID)

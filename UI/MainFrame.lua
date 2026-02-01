@@ -17,6 +17,7 @@ MF.initialized = false
 MF.frame = nil
 MF.elements = {}
 MF.contentRows = {}
+MF.contextMenu = nil
 
 -- ====================================================================
 -- 创建主窗口
@@ -378,22 +379,52 @@ function MF:CreateCurrencyRow(currency, yOffset)
     name:SetText(currency.name or CF:L("UNKNOWN"))
     name:SetFont(name:GetFont(), settings.fontSize or 12)
     name:SetJustifyH("LEFT")
-    name:SetWidth(row:GetWidth() - iconOffset - 60)
+    name:SetWidth(row:GetWidth() - iconOffset - 100)
     name:SetWordWrap(false)
     
-    -- 数量
+    -- 数量 - 特殊处理金币
     local amount = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     amount:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-    amount:SetText(CF:FormatLocalizedNumber(currency.amount or 0))
     amount:SetFont(amount:GetFont(), settings.fontSize or 12)
     amount:SetJustifyH("RIGHT")
     
-    -- 如果达到上限，显示为红色
-    if currency.maxAmount and currency.maxAmount > 0 and 
-       currency.amount >= currency.maxAmount then
-        amount:SetTextColor(1, 0.3, 0.3)
+    if currency.id == 0 then
+        -- 金币特殊格式化：金/银/铜分开显示
+        local money = currency.amount or 0
+        local gold = math.floor(money / 10000)
+        local silver = math.floor((money % 10000) / 100)
+        local copper = money % 100
+        
+        local text = ""
+        if gold > 0 then
+            text = string.format("|cffffd700%s|r", CF:FormatLocalizedNumber(gold))
+            if silver > 0 or copper > 0 then
+                text = text .. string.format("|cffc7c7cf %02d|r", silver)
+            end
+            if copper > 0 then
+                text = text .. string.format("|cffeda55f %02d|r", copper)
+            end
+        elseif silver > 0 then
+            text = string.format("|cffc7c7cf%d|r", silver)
+            if copper > 0 then
+                text = text .. string.format("|cffeda55f %02d|r", copper)
+            end
+        else
+            text = string.format("|cffeda55f%d|r", copper)
+        end
+        
+        amount:SetText(text)
     else
-        amount:SetTextColor(1, 1, 1)
+        -- 普通货币格式化
+        amount:SetText(CF:FormatLocalizedNumber(currency.amount or 0))
+        
+        -- 如果达到上限，显示为红色
+        if currency.maxAmount and currency.maxAmount > 0 and 
+           currency.amount >= currency.maxAmount then
+            amount:SetTextColor(1, 0.3, 0.3)
+        else
+            amount:SetTextColor(1, 1, 1)
+        end
     end
     
     -- 工具提示
@@ -403,26 +434,42 @@ function MF:CreateCurrencyRow(currency, yOffset)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(currency.name or CF:L("UNKNOWN"), 1, 1, 1)
             GameTooltip:AddLine(" ")
-            GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_AMOUNT"), 
-                CF:FormatLocalizedNumber(currency.amount or 0), 1, 1, 1, 1, 1, 1)
             
-            if currency.maxAmount and currency.maxAmount > 0 then
-                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_MAX"), 
-                    CF:FormatLocalizedNumber(currency.maxAmount), 1, 1, 1, 1, 1, 1)
-            end
-            
-            if currency.weeklyAmount and currency.weeklyMax and currency.weeklyMax > 0 then
-                GameTooltip:AddDoubleLine(CF:L("WEEKLY"), 
-                    string.format("%s / %s", 
-                        CF:FormatLocalizedNumber(currency.weeklyAmount), 
-                        CF:FormatLocalizedNumber(currency.weeklyMax)), 
-                    1, 1, 1, 1, 1, 1)
-            end
-            
-            if currency.type then
-                local typeName = CF:GetCurrencyTypeLocalizedName(currency.type)
-                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_TYPE"), 
-                    typeName, 1, 1, 1, 0.7, 0.7, 0.7)
+            if currency.id == 0 then
+                -- 金币工具提示
+                local money = currency.amount or 0
+                local gold = math.floor(money / 10000)
+                local silver = math.floor((money % 10000) / 100)
+                local copper = money % 100
+                
+                GameTooltip:AddDoubleLine(CF:L("CURRENCY_GOLD"), 
+                    tostring(gold), 1, 1, 1, 1, 0.82, 0)
+                GameTooltip:AddDoubleLine(CF:L("CURRENCY_SILVER"), 
+                    tostring(silver), 1, 1, 1, 0.78, 0.78, 0.78)
+                GameTooltip:AddDoubleLine(CF:L("CURRENCY_COPPER"), 
+                    tostring(copper), 1, 1, 1, 0.93, 0.65, 0.37)
+            else
+                GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_AMOUNT"), 
+                    CF:FormatLocalizedNumber(currency.amount or 0), 1, 1, 1, 1, 1, 1)
+                
+                if currency.maxAmount and currency.maxAmount > 0 then
+                    GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_MAX"), 
+                        CF:FormatLocalizedNumber(currency.maxAmount), 1, 1, 1, 1, 1, 1)
+                end
+                
+                if currency.weeklyAmount and currency.weeklyMax and currency.weeklyMax > 0 then
+                    GameTooltip:AddDoubleLine(CF:L("WEEKLY"), 
+                        string.format("%s / %s", 
+                            CF:FormatLocalizedNumber(currency.weeklyAmount), 
+                            CF:FormatLocalizedNumber(currency.weeklyMax)), 
+                        1, 1, 1, 1, 1, 1)
+                end
+                
+                if currency.type then
+                    local typeName = CF:GetCurrencyTypeLocalizedName(currency.type)
+                    GameTooltip:AddDoubleLine(CF:L("TOOLTIP_CURRENCY_TYPE"), 
+                        typeName, 1, 1, 1, 0.7, 0.7, 0.7)
+                end
             end
             
             GameTooltip:Show()
@@ -435,8 +482,12 @@ function MF:CreateCurrencyRow(currency, yOffset)
         -- 点击事件
         row:SetScript("OnMouseUp", function(self, button)
             if button == "LeftButton" then
-                -- 这里可以添加点击后的操作
-                CF:LogInfo("点击货币: %s", currency.name)
+                if currency.id == 0 then
+                    -- 点击金币可以打开角色面板
+                    ToggleCharacter("TokenFrame")
+                else
+                    CF:LogInfo("点击货币: %s", currency.name)
+                end
             end
         end)
     end
@@ -640,61 +691,56 @@ end
 -- 显示右键菜单
 -- ====================================================================
 function MF:ShowContextMenu()
-    local menu = CreateFrame("Frame", "CopperFeverContextMenu", UIParent, "UIDropDownMenuTemplate")
-    
-    local menuList = {
-        {
-            text = CF:L("MENU_TOGGLE_WINDOW"),
-            func = function() MF:Toggle() end,
-            notCheckable = true,
-        },
-        {
-            text = CF:L("MENU_LOCK_WINDOW"),
-            func = function() MF:SetLocked(true) end,
-            notCheckable = true,
-        },
-        {
-            text = CF:L("MENU_UNLOCK_WINDOW"),
-            func = function() MF:SetLocked(false) end,
-            notCheckable = true,
-        },
-        {
-            text = CF:L("MENU_RESET_POSITION"),
-            func = function() MF:ResetPosition() end,
-            notCheckable = true,
-        },
-        {
-            text = CF:L("MENU_REFRESH_DATA"),
-            func = function() 
-                if CF.DataManager and CF.DataManager.RefreshData then
-                    CF.DataManager:RefreshData()
-                end
-            end,
-            notCheckable = true,
-        },
-        {
-            text = CF:L("MENU_SETTINGS"),
-            func = function() 
-                if CF.ConfigPanel and CF.ConfigPanel.Open then
-                    CF.ConfigPanel:Open()
-                end
-            end,
-            notCheckable = true,
-        },
-    }
-    
-    -- 使用新的 UIDropDownMenu API (WoW 11.0+ 兼容)
-    local function InitializeMenu(self, level)
-        for _, item in ipairs(menuList) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = item.text
-            info.func = item.func
-            info.notCheckable = item.notCheckable
-            UIDropDownMenu_AddButton(info, level)
-        end
+    if not self.contextMenu then
+        self.contextMenu = CreateFrame("Frame", "CopperFeverContextMenu", UIParent, "UIDropDownMenuTemplate")
     end
-    
-    UIDropDownMenu_Initialize(menu, InitializeMenu, "MENU")
+
+    local menu = self.contextMenu
+
+    UIDropDownMenu_Initialize(menu, function(self, level)
+        if level ~= 1 then return end
+
+        local info = UIDropDownMenu_CreateInfo()
+
+        info.text = CF:L("MENU_TOGGLE_WINDOW")
+        info.func = function() MF:Toggle() end
+        info.notCheckable = true
+        UIDropDownMenu_AddButton(info)
+
+        if CopperFeverDB and CopperFeverDB.settings and CopperFeverDB.settings.mainFrame.locked then
+            info.text = CF:L("MENU_UNLOCK_WINDOW")
+            info.func = function() MF:SetLocked(false) end
+        else
+            info.text = CF:L("MENU_LOCK_WINDOW")
+            info.func = function() MF:SetLocked(true) end
+        end
+        info.notCheckable = true
+        UIDropDownMenu_AddButton(info)
+
+        info.text = CF:L("MENU_RESET_POSITION")
+        info.func = function() MF:ResetPosition() end
+        info.notCheckable = true
+        UIDropDownMenu_AddButton(info)
+
+        info.text = CF:L("MENU_REFRESH_DATA")
+        info.func = function()
+            if CF.DataManager and CF.DataManager.RefreshData then
+                CF.DataManager:RefreshData()
+            end
+        end
+        info.notCheckable = true
+        UIDropDownMenu_AddButton(info)
+
+        info.text = CF:L("MENU_SETTINGS")
+        info.func = function()
+            if CF.ConfigPanel and CF.ConfigPanel.Open then
+                CF.ConfigPanel:Open()
+            end
+        end
+        info.notCheckable = true
+        UIDropDownMenu_AddButton(info)
+    end)
+
     ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0)
 end
 

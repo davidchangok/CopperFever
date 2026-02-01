@@ -82,8 +82,23 @@ end
 
 -- 获取货币详细信息
 function DM:GetCurrencyInfo(currencyID)
-    if type(currencyID) ~= "number" or currencyID <= 0 then
+    if type(currencyID) ~= "number" or currencyID < 0 then
         return nil
+    end
+    
+    -- 特殊处理金币 (ID = 0)
+    if currencyID == 0 then
+        local money = GetMoney()
+        return {
+            name = CF:L("GOLD"),
+            iconFileID = 133784,  -- 金币图标
+            quantity = money or 0,
+            maxQuantity = 0,  -- 金币没有上限
+            quantityEarnedThisWeek = 0,
+            canEarnPerWeek = 0,
+            discovered = true,
+            currencyType = CF.CURRENCY_TYPES.STANDARD,
+        }
     end
     
     -- 检查缓存
@@ -334,21 +349,106 @@ function DM:GetMapCurrencies(mapID)
         return {}
     end
     
+    local currencies = {}
     local db = CopperFeverDB
     
-    -- 优先使用用户自定义的关联
+    -- 1. 始终添加金币 (ID = 0)
+    table.insert(currencies, 0)
+    
+    -- 2. 优先使用用户自定义的关联
     if db and db.mapAssociations and db.mapAssociations[mapID] then
         if db.mapAssociations[mapID].currencies then
-            return db.mapAssociations[mapID].currencies
+            for _, currencyID in ipairs(db.mapAssociations[mapID].currencies) do
+                if currencyID ~= 0 then  -- 避免重复添加金币
+                    table.insert(currencies, currencyID)
+                end
+            end
+            return currencies
         end
     end
     
-    -- 使用静态数据中的关联
+    -- 3. 检查静态数据中的关联
     if CF.StaticData and CF.StaticData.MapCurrencyAssociations then
-        return CF.StaticData.MapCurrencyAssociations[mapID] or {}
+        local staticCurrencies = CF.StaticData.MapCurrencyAssociations[mapID]
+        if staticCurrencies and #staticCurrencies > 0 then
+            for _, currencyID in ipairs(staticCurrencies) do
+                if currencyID ~= 0 then
+                    table.insert(currencies, currencyID)
+                end
+            end
+            return currencies
+        end
     end
     
-    return {}
+    -- 4. 根据地图所属版本，自动添加该版本的默认货币
+    local expansion = self:GetMapExpansion(mapID)
+    if expansion then
+        local expansionCurrencies = self:GetExpansionDefaultCurrencies(expansion)
+        for _, currencyID in ipairs(expansionCurrencies) do
+            if currencyID ~= 0 then
+                table.insert(currencies, currencyID)
+            end
+        end
+    end
+    
+    return currencies
+end
+
+-- 获取地图所属的版本
+function DM:GetMapExpansion(mapID)
+    if type(mapID) ~= "number" or mapID <= 0 then
+        return nil
+    end
+    
+    -- 从静态数据中查找
+    if CF.StaticData and CF.StaticData.MapExpansions then
+        local expansion = CF.StaticData.MapExpansions[mapID]
+        if expansion then
+            return expansion
+        end
+    end
+    
+    -- 从地图信息中获取
+    local mapInfo = self:GetMapInfo(mapID)
+    if mapInfo and mapInfo.expansion then
+        return mapInfo.expansion
+    end
+    
+    -- 默认返回当前版本
+    return CF.EXPANSIONS.TWW
+end
+
+-- 获取指定版本的默认货币列表
+function DM:GetExpansionDefaultCurrencies(expansion)
+    if type(expansion) ~= "number" then
+        return {}
+    end
+    
+    if not CF.StaticData or not CF.StaticData.Currencies then
+        return {}
+    end
+    
+    local db = CopperFeverDB
+    local maxCurrencies = 6  -- 默认每个地图最多显示6个货币（加上金币就是7个）
+    
+    if db and db.settings and db.settings.display and 
+       db.settings.display.maxCurrenciesPerZone then
+        maxCurrencies = db.settings.display.maxCurrenciesPerZone
+    end
+    
+    local currencies = {}
+    local expansionData = CF.StaticData.Currencies[expansion]
+    
+    if expansionData and type(expansionData) == "table" then
+        -- 只取前N个货币，避免显示过多
+        for i = 1, math.min(#expansionData, maxCurrencies) do
+            if expansionData[i] and expansionData[i].id then
+                table.insert(currencies, expansionData[i].id)
+            end
+        end
+    end
+    
+    return currencies
 end
 
 -- 获取地图关联的声望列表

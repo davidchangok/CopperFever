@@ -412,6 +412,66 @@ L["ABOUT_SUPPORT"] = "For support, visit:"
 L["ABOUT_LICENSE"] = "License: All Rights Reserved"
 
 -- ====================================================================
+-- 新增：货币显示相关
+-- ====================================================================
+L["GOLD"] = "Gold"
+L["CURRENCIES"] = "Currencies"
+L["REPUTATIONS"] = "Reputations"
+L["STATUS_UPDATING"] = "Updating..."
+L["STATUS_ERROR"] = "Error loading data"
+
+-- 货币单位
+L["CURRENCY_GOLD"] = "Gold"
+L["CURRENCY_SILVER"] = "Silver"
+L["CURRENCY_COPPER"] = "Copper"
+
+-- ====================================================================
+-- 新增：地图和配置相关
+-- ====================================================================
+L["MAP_LIST"] = "Map List"
+L["CURRENCY_SELECTION"] = "Currency Selection"
+L["CONFIG_DATA_TITLE"] = "Map-Currency Associations"
+L["CONFIG_MAP_CURRENCIES"] = "Map Currencies"
+L["CONFIG_MAP_REPUTATIONS"] = "Map Reputations"
+
+-- ====================================================================
+-- 新增：版本名称
+-- ====================================================================
+L["EXPANSION_0"] = "Classic"
+L["EXPANSION_1"] = "The Burning Crusade"
+L["EXPANSION_2"] = "Wrath of the Lich King"
+L["EXPANSION_3"] = "Cataclysm"
+L["EXPANSION_4"] = "Mists of Pandaria"
+L["EXPANSION_5"] = "Warlords of Draenor"
+L["EXPANSION_6"] = "Legion"
+L["EXPANSION_7"] = "Battle for Azeroth"
+L["EXPANSION_8"] = "Shadowlands"
+L["EXPANSION_9"] = "Dragonflight"
+L["EXPANSION_10"] = "The War Within"
+L["UNKNOWN_EXPANSION"] = "Unknown Expansion"
+
+-- ====================================================================
+-- 新增：右键菜单
+-- ====================================================================
+L["MENU_TOGGLE_WINDOW"] = "Toggle Window"
+L["MENU_LOCK_WINDOW"] = "Lock Window"
+L["MENU_UNLOCK_WINDOW"] = "Unlock Window"
+L["MENU_RESET_POSITION"] = "Reset Position"
+L["MENU_REFRESH_DATA"] = "Refresh Data"
+L["MENU_SETTINGS"] = "Settings"
+
+-- ====================================================================
+-- 新增：状态和消息
+-- ====================================================================
+L["MSG_MAP_CHANGED"] = "Entered: %s"
+L["INFO_FIRST_RUN"] = "Welcome to Copper Fever! Type /cf to open settings."
+L["MSG_DATA_IMPORTING"] = "Importing data..."
+L["MSG_DATA_IMPORTED"] = "Data imported successfully!"
+
+-- 错误消息
+L["ERROR_ATT_NOT_FOUND"] = "ALL THE THINGS addon not found"
+
+-- ====================================================================
 -- 注册本地化
 -- ====================================================================
 CF:RegisterLocale("enUS", L)
